@@ -39,6 +39,75 @@ class ExtractedPDF:
     has_text: bool = True
     text_reliable: bool = True
     note: str | None = None
+    sections: list[dict] = field(default_factory=list)
+    start_page: int = 1
+    end_page: int = 0
+    has_more_pages: bool = False
+
+
+# Bölüm başlıkları (Türkçe + İngilizce). Satır, opsiyonel numaralandırmadan sonra
+# bu anahtarlardan birine eşitse bölüm sınırı sayılır.
+_SECTION_KEYWORDS = {
+    "OZ", "OZET", "ABSTRACT", "EXTENDED ABSTRACT", "GENISLETILMIS OZET",
+    "GIRIS", "INTRODUCTION",
+    "LITERATUR", "LITERATURE REVIEW", "KAVRAMSAL CERCEVE", "KURAMSAL CERCEVE",
+    "YONTEM", "YONTEMLER", "MATERYAL VE YONTEM", "GEREC VE YONTEM", "ARASTIRMA YONTEMI",
+    "METHOD", "METHODS", "METHODOLOGY", "MATERIALS AND METHODS", "MATERIAL AND METHODS",
+    "BULGULAR", "RESULTS", "FINDINGS", "RESULTS AND DISCUSSION", "BULGULAR VE TARTISMA",
+    "TARTISMA", "DISCUSSION",
+    "SONUC", "SONUCLAR", "SONUC VE ONERILER", "CONCLUSION", "CONCLUSIONS",
+    "CONCLUSION AND RECOMMENDATIONS", "ONERILER", "RECOMMENDATIONS",
+    "TESEKKUR", "ACKNOWLEDGEMENT", "ACKNOWLEDGEMENTS", "ACKNOWLEDGMENTS",
+    "KAYNAKCA", "KAYNAKLAR", "REFERANSLAR", "REFERENCES", "BIBLIOGRAPHY",
+}
+
+
+def _fold_upper(s: str) -> str:
+    """Türkçe-duyarlı büyük-harf katlama: ı/İ/ş/ğ/ü/ö/ç → I/I/S/G/U/O/C, sonra upper."""
+    table = str.maketrans({
+        "ı": "i", "İ": "i", "ş": "s", "ğ": "g", "ü": "u", "ö": "o", "ç": "c",
+        "Ş": "S", "Ğ": "G", "Ü": "U", "Ö": "O", "Ç": "C", "I": "I",
+    })
+    return s.translate(table).upper()
+
+
+def _heading_if_any(line: str) -> str | None:
+    """Satır bir bölüm başlığıysa (numaralandırma toleranslı) orijinal satırı döndürür."""
+    stripped = line.strip()
+    if not stripped or len(stripped) > 60:
+        return None
+    # Baştaki "1.", "1.2", "I.", "A)" gibi numaralandırmayı at.
+    core = re.sub(r"^\s*([0-9]+([.\)][0-9]*)*|[IVXLC]+|[A-Da-d])[.\)]\s*", "", stripped).strip()
+    if _fold_upper(core) in _SECTION_KEYWORDS:
+        return stripped
+    return None
+
+
+def split_sections(text: str) -> list[dict]:
+    """Düz metni bölümlere ayırır (en iyi çaba). ``[{heading, text}]`` döndürür.
+
+    Hiç başlık bulunamazsa boş liste döner (markdown yine tam metni içerir).
+    """
+    sections: list[dict] = []
+    cur_head: str | None = None
+    cur: list[str] = []
+    found_any = False
+    for line in text.split("\n"):
+        h = _heading_if_any(line)
+        if h is not None:
+            body = "\n".join(cur).strip()
+            if cur_head is not None or body:
+                sections.append({"heading": cur_head or "(başlık öncesi)", "text": body})
+            cur_head = h
+            cur = []
+            found_any = True
+        else:
+            cur.append(line)
+    if found_any:
+        body = "\n".join(cur).strip()
+        if cur_head is not None or body:
+            sections.append({"heading": cur_head or "(başlık öncesi)", "text": body})
+    return [s for s in sections if s["text"]]
 
 
 def readable_ratio(text: str, sample: int = 3000) -> float:
@@ -69,56 +138,68 @@ def _normalize(text: str) -> str:
     return text.strip()
 
 
-def extract(data: bytes, source_url: str, max_pages: int | None = None) -> ExtractedPDF:
+def extract(
+    data: bytes,
+    source_url: str,
+    max_pages: int | None = None,
+    start_page: int = 1,
+) -> ExtractedPDF:
+    """PDF'ten metin çıkarır. ``start_page`` (1-tabanlı) ve ``max_pages`` ile
+    uzun belgeler sayfa-sayfa gezilebilir (araç-içi sayfalama)."""
     reader = PdfReader(io.BytesIO(data))
     total = len(reader.pages)
-    limit = total if max_pages is None else min(max_pages, total)
+
+    start_idx = max(0, start_page - 1)
+    end_idx = total if max_pages is None else min(start_idx + max_pages, total)
+    start_idx = min(start_idx, total)
 
     pages: list[str] = []
-    for i in range(limit):
+    for i in range(start_idx, end_idx):
         try:
             raw = reader.pages[i].extract_text() or ""
         except Exception as exc:  # bozuk sayfa tek tek atlanır
-            raw = ""
-            page_note = f"[sayfa {i + 1} çıkarılamadı: {exc}]"
-            pages.append(page_note)
+            pages.append(f"[sayfa {i + 1} çıkarılamadı: {exc}]")
             continue
         pages.append(_normalize(raw))
 
     body = "\n\n".join(
-        f"## Sayfa {i + 1}\n\n{txt}" if txt else f"## Sayfa {i + 1}\n\n_(boş veya görüntü)_"
+        f"## Sayfa {start_idx + i + 1}\n\n{txt}" if txt
+        else f"## Sayfa {start_idx + i + 1}\n\n_(boş veya görüntü)_"
         for i, txt in enumerate(pages)
     )
+    full_text = "\n".join(pages)
     # Taranmış (görüntü) PDF'ler ~0 karakter verir; gerçek metin katmanı yüzlerce+.
-    # Eşik düşük tutulur ki kısa ama gerçek sayfalar yanlışlıkla "boş" sayılmasın.
     has_text = sum(len(p.strip()) for p in pages) > 10
-    truncated = limit < total
+    has_more = end_idx < total
     text_reliable = True
     note = None
     if not has_text:
-        if truncated:
-            # Sadece ilk birkaç sayfa çekildi ve onlar seyrek (kapak/başlık olabilir);
-            # "taranmış" demek yanıltıcı olur.
+        if start_idx > 0 or has_more:
             note = (
-                f"İlk {limit} sayfada anlamlı metin bulunamadı (belge {total} sayfa). "
-                "Daha fazla sayfa için max_pages değerini artırın; ya da belge taranmış olabilir."
+                f"Çekilen sayfa aralığında ({start_idx + 1}-{end_idx}/{total}) anlamlı metin yok. "
+                "Aralığı genişletin/kaydırın (start_page, max_pages); ya da belge taranmış olabilir."
             )
         else:
             note = (
-                "Bu PDF'ten metin çıkarılamadı — büyük olasılıkla taranmış (görüntü) "
-                "bir belge. OCR bu sürümde desteklenmiyor."
+                "Bu PDF'ten metin çıkarılamadı — büyük olasılıkla taranmış (görüntü) bir belge. "
+                "Dürüstçe belirtmek gerekir ki güvenilir metin elde edilemedi (OCR yapılmaz)."
             )
     else:
-        ratio = readable_ratio("\n".join(pages))
+        ratio = readable_ratio(full_text)
         if ratio < READABLE_RATIO_THRESHOLD:
             text_reliable = False
             note = (
-                f"Çıkarılan metin güvenilir görünmüyor (okunabilir karakter oranı %{ratio * 100:.0f}). "
-                "PDF fontu düzgün Unicode eşlemesi içermiyor; çıkarılan metin bozuk. "
-                "Bu tür belgeler için OCR gerekir (bu sürümde yok)."
+                f"DİKKAT: Çıkarılan metin güvenilir DEĞİL (okunabilir karakter oranı %{ratio * 100:.0f}). "
+                "PDF fontu düzgün Unicode (ToUnicode) eşlemesi içermiyor; çıkarılan metin bozuk/anlamsız. "
+                "Bu metne güvenmeyin — makaleyi orijinal kaynağından okuyun."
             )
 
-    header = f"# Tam metin (PDF)\n\nKaynak: {source_url}\nSayfa: {limit}/{total}\n\n---\n\n"
+    sections = split_sections(full_text) if (has_text and text_reliable) else []
+
+    header = (
+        f"# Tam metin (PDF)\n\nKaynak: {source_url}\n"
+        f"Sayfa aralığı: {start_idx + 1}-{end_idx} / {total}\n\n---\n\n"
+    )
     return ExtractedPDF(
         source_url=source_url,
         page_count=total,
@@ -127,11 +208,15 @@ def extract(data: bytes, source_url: str, max_pages: int | None = None) -> Extra
         has_text=has_text,
         text_reliable=text_reliable,
         note=note,
+        sections=sections,
+        start_page=start_idx + 1,
+        end_page=end_idx,
+        has_more_pages=has_more,
     )
 
 
 async def download_and_extract(
-    pdf_url: str, max_pages: int | None = None
+    pdf_url: str, max_pages: int | None = None, start_page: int = 1
 ) -> ExtractedPDF:
     resp = await http.get(pdf_url)
     data = resp.content
@@ -142,4 +227,4 @@ async def download_and_extract(
     ctype = resp.headers.get("content-type", "")
     if "pdf" not in ctype.lower() and not data[:5].startswith(b"%PDF"):
         raise ValueError(f"Beklenen PDF değil (content-type: {ctype}).")
-    return extract(data, pdf_url, max_pages=max_pages)
+    return extract(data, pdf_url, max_pages=max_pages, start_page=start_page)

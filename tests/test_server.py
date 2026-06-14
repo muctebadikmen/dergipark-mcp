@@ -42,7 +42,26 @@ async def test_get_article_via_client():
     data = res.data
     assert data["id"] == "1000"
     assert data["title"]
-    assert "bibtex" in data
+    # 8 atıf formatı
+    cites = data["citations"]
+    assert cites["bibtex"].startswith("@")
+    assert {"apa", "mla", "ieee", "chicago", "harvard", "ris", "csl_json"} <= set(cites)
+    # yapısal yazar (oai_mods)
+    assert data["authors_detailed"][0]["family"] == "Bakırcı"
+    # cilt/sayı/sayfa (mods/HTML)
+    assert data["volume"] == "29" and data["issue"] == "247"
+
+
+async def test_get_article_rich_enrichment_via_client():
+    # Zengin makale: afiliasyon + ORCID + çok yazarlı
+    async with Client(mcp) as client:
+        res = await client.call_tool("get_article", {"article": "1816398"})
+    data = res.data
+    dets = data["authors_detailed"]
+    assert len(dets) == 2
+    assert any(d.get("orcid") for d in dets)
+    assert any(d.get("affiliation") for d in dets)
+    assert data["citations"]["apa"]
 
 
 async def test_get_article_by_url_via_client():

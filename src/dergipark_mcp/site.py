@@ -19,6 +19,9 @@ from bs4 import BeautifulSoup
 
 from . import BASE_URL
 from . import http
+from .cache import default_cache
+
+_PAGE_TTL = 24 * 3600
 
 
 @dataclass
@@ -83,19 +86,82 @@ def parse_article_html(html: str, url: str) -> ArticlePage:
     )
 
 
+def _as_list(value) -> list[str]:
+    """citation_meta değeri tek (str) ya da çoklu (list) olabilir → her zaman liste."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [v for v in value if v and v != "-"]
+    return [value] if value != "-" else []
+
+
+def _first(value) -> str | None:
+    items = _as_list(value)
+    return items[0] if items else None
+
+
+def citation_authors(meta: dict) -> list[dict]:
+    """``citation_author`` + paralel ``citation_author_institution``/``_orcid`` dizilerini
+    sıraya göre eşleştirir → ``[{name, affiliation, orcid}]``.
+
+    DergiPark bu üç meta'yı aynı sırada yayınlar (doğrulandı).
+    """
+    names = _as_list(meta.get("citation_author"))
+    insts = _as_list(meta.get("citation_author_institution"))
+    orcids = _as_list(meta.get("citation_author_orcid"))
+    out: list[dict] = []
+    for i, name in enumerate(names):
+        out.append({
+            "name": name,
+            "affiliation": insts[i] if i < len(insts) else None,
+            "orcid": orcids[i] if i < len(orcids) else None,
+        })
+    return out
+
+
+def citation_bibliographic(meta: dict) -> dict:
+    """Makale HTML'inden yapısal bibliyografik alanlar (citation_* meta)."""
+    raw_doi = _first(meta.get("citation_doi"))
+    doi = None
+    if raw_doi:
+        doi = raw_doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
+    kw_raw = _first(meta.get("citation_keywords")) or ""
+    # Anahtar kelimeler ";" (bazen ",") ile ayrılır.
+    keywords = [k.strip() for k in re.split(r"[;,]", kw_raw) if k.strip()]
+    return {
+        "title": _first(meta.get("citation_title")),
+        "journal": _first(meta.get("citation_journal_title")),
+        "issn": _first(meta.get("citation_issn")),
+        "volume": _first(meta.get("citation_volume")),
+        "issue": _first(meta.get("citation_issue")),
+        "first_page": _first(meta.get("citation_firstpage")),
+        "last_page": _first(meta.get("citation_lastpage")),
+        "doi": doi,
+        "date": _first(meta.get("citation_publication_date")) or _first(meta.get("citation_date")),
+        "article_type": _first(meta.get("citation_article_type")),
+        "keywords": keywords,
+        "language": _first(meta.get("citation_language")),
+        "publisher": _first(meta.get("citation_publisher")),
+    }
+
+
 async def fetch_article_page(url: str) -> ArticlePage:
-    html = await http.get_text(url)
+    html = await default_cache.get_or_compute(
+        f"page:{url}", lambda: http.get_text(url), ttl=_PAGE_TTL
+    )
     return parse_article_html(html, url)
 
 
 async def fetch_bibtex(numeric_id: str | int, lang: str = "en") -> str | None:
-    """Makalenin BibTeX atıfını getirir (type/2)."""
+    """Makalenin BibTeX atıfını getirir (type/2). DergiPark'ın kendi ürettiği BibTeX."""
     url = f"{BASE_URL}/{lang}/download/article-cite-file/{numeric_id}/type/2"
     try:
-        text = await http.get_text(url)
+        text = await default_cache.get_or_compute(
+            f"bibtex:{lang}:{numeric_id}", lambda: http.get_text(url), ttl=_PAGE_TTL
+        )
     except Exception:
         return None
-    text = text.strip()
+    text = (text or "").strip()
     if text.startswith("@"):
         return text
     return None

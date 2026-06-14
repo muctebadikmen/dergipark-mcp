@@ -41,6 +41,74 @@ def test_synthetic_references_meta():
     assert page.pdf_url == "https://dergipark.org.tr/tr/download/article-file/99"
 
 
+def test_citation_authors_parallel_arrays():
+    page = site.parse_article_html(read_fixture("article_rich.html"), "http://x/article/1816398")
+    authors = site.citation_authors(page.citation_meta)
+    assert len(authors) == 2
+    assert authors[0]["name"] == "Tunahan Karaarslan"
+    assert authors[0]["affiliation"] == "İSTANBUL ESENYURT ÜNİVERSİTESİ"
+    assert authors[0]["orcid"] == "0009-0003-5177-4073"
+    assert authors[1]["orcid"] == "0000-0002-9638-025X"
+
+
+def test_citation_bibliographic_fields():
+    page = site.parse_article_html(read_fixture("article_rich.html"), "http://x")
+    b = site.citation_bibliographic(page.citation_meta)
+    assert b["journal"].startswith("İstanbul 29 Mayıs")
+    assert b["volume"] == "1" and b["issue"] == "1"
+    assert b["first_page"] == "1" and b["last_page"] == "12"
+    assert b["issn"] == "3108-7434"
+    assert b["date"] == "2026-01-30"
+    assert any("Critical Thinking" in k for k in b["keywords"])
+
+
+def test_rich_references_full_list():
+    page = site.parse_article_html(read_fixture("article_rich.html"), "http://x")
+    assert len(page.references) == 38  # canlı doğrulandı
+    assert page.references[0].startswith("Abrami")
+    assert "-" not in page.references
+
+
+def test_citation_author_single_string():
+    page = site.parse_article_html(read_fixture("article.html"), "http://x")
+    authors = site.citation_authors(page.citation_meta)
+    assert len(authors) == 1
+    assert authors[0]["name"] == "Fahri Bakırcı"
+
+
+def test_split_sections_turkish_english():
+    text = (
+        "Makale başlığı ve yazarlar\n\n"
+        "ÖZET\nBu çalışma eleştirel düşünmeyi inceler.\n\n"
+        "GİRİŞ\nGiriş metni burada.\n\n"
+        "1. YÖNTEM\nNitel yöntem kullanıldı.\n\n"
+        "BULGULAR\nBulgular şöyle.\n\n"
+        "KAYNAKÇA\nYazar A. (2020).\nYazar B. (2021)."
+    )
+    secs = pdf.split_sections(text)
+    heads = [s["heading"] for s in secs]
+    assert any("ÖZET" in h for h in heads)
+    assert any("GİRİŞ" in h for h in heads)
+    assert any("YÖNTEM" in h for h in heads)
+    assert any("KAYNAKÇA" in h for h in heads)
+    # KAYNAKÇA bölümünde iki referans satırı olmalı
+    kaynak = next(s for s in secs if "KAYNAKÇA" in s["heading"])
+    assert "Yazar A." in kaynak["text"] and "Yazar B." in kaynak["text"]
+
+
+def test_split_sections_none_found():
+    assert pdf.split_sections("başlık yok, sadece düz metin paragrafı.") == []
+
+
+def test_extract_pagination_out_of_range():
+    minimal = _minimal_pdf_bytes()
+    r = pdf.extract(minimal, "http://x/file/1", start_page=2)
+    assert r.page_count == 1
+    assert r.start_page == 2
+    assert not r.has_more_pages
+    assert not r.has_text  # 2. sayfadan başlayınca boş
+
+
 def test_pdf_normalize_dehyphenation():
     raw = "bu bir cüm-\nle ve devamı\n\n\n\nyeni paragraf"
     out = pdf._normalize(raw)
