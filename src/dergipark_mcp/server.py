@@ -19,7 +19,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import oai, pdf, site
+from . import directory, oai, pdf, site
 
 mcp = FastMCP(
     name="dergipark-mcp",
@@ -108,31 +108,53 @@ async def _resolve_article_url(article: str) -> tuple[str, str | None]:
 # --------------------------------------------------------------------------- #
 
 @mcp.tool(annotations=READONLY)
-async def list_journals(query: str | None = None, limit: int = 50) -> dict:
-    """DergiPark dergilerini listele/ara.
+async def list_journals(
+    query: str | None = None,
+    subject: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    ctx: Context | None = None,
+) -> dict:
+    """DergiPark dergilerini ara/listele — TAM dizin (~2.550 dergi).
 
-    NOT: Bu kısmi bir dizindir — DergiPark'ın OAI servisi yaklaşık 100 dergi
-    döndürür (tam dizin programatik olarak verilmez). Herhangi bir dergiye yine de
-    slug'ı ile (list_journal_articles / search_articles) erişebilirsiniz.
+    Dergi adı/slug'ında ``query`` ve konu etiketinde ``subject`` filtreleri uygulanır
+    (ikisi de büyük/küçük harf ve Türkçe-duyarsız). Sonuç ``limit``/``offset`` ile
+    sayfalanır. Filtre yokken keşfi kolaylaştırmak için en yaygın konular da döner.
 
     Args:
-        query: Dergi adında geçen metin (büyük/küçük harf duyarsız). Boşsa hepsi.
-        limit: Döndürülecek en fazla dergi sayısı.
+        query: Dergi adında/slug'ında geçen metin (örn. "eğitim", "mulkiye").
+        subject: Konu etiketi filtresi. DergiPark konu taksonomisi İNGİLİZCEDİR
+            (örn. "Sociology", "Education", "Law", "Public Administration").
+            Mevcut konular için filtresiz çağırıp available_subjects'e bakın.
+        limit: Bu sayfada döndürülecek en fazla dergi.
+        offset: Sayfalama kaydırması (0'dan başlar).
     """
-    journals = await oai.list_journals()
-    if query:
-        q = query.casefold()
-        journals = [j for j in journals if q in j.name.casefold() or q in j.slug.casefold()]
-    journals = journals[:limit]
-    return {
-        "count": len(journals),
-        "partial_directory": True,
-        "note": (
-            "Kısmi dizin (~100 dergi). Bir derginin slug'ını onun dergipark.org.tr "
-            "URL'sindeki /pub/<slug>/ kısmından da alabilirsiniz."
-        ),
-        "journals": [{"slug": j.slug, "name": j.name} for j in journals],
+    entries = await directory.get_directory(ctx=ctx)
+    filtered = directory.filter_journals(entries, query=query, subject=subject)
+    total = len(filtered)
+    page = filtered[offset:offset + limit]
+
+    result: dict = {
+        "count": len(page),
+        "total": total,
+        "offset": offset,
+        "directory_size": len(entries),
+        "query": query,
+        "subject": subject,
+        "journals": [e.to_dict() for e in page],
     }
+    if not query and not subject:
+        top = list(directory.subject_counts(entries).items())[:25]
+        result["available_subjects"] = [{"subject": s, "journal_count": n} for s, n in top]
+        result["note"] = (
+            f"Tam dizin: {len(entries)} dergi. 'query' ile ada/slug'a göre, "
+            "'subject' ile konuya göre filtreleyin. available_subjects en yaygın konuları gösterir."
+        )
+    elif total == 0:
+        result["note"] = "Eşleşme yok. Daha genel bir 'query'/'subject' deneyin."
+    elif total > offset + limit:
+        result["note"] = f"{total} eşleşmeden {offset + 1}–{offset + len(page)} gösteriliyor. Devamı için offset'i artırın."
+    return result
 
 
 @mcp.tool(annotations=READONLY)
