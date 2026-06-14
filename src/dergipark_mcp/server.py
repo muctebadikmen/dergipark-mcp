@@ -13,6 +13,7 @@ Kalite ilkeleri:
 
 from __future__ import annotations
 
+import os
 import re
 
 from fastmcp import Context, FastMCP
@@ -23,6 +24,14 @@ from . import citations, directory, index, oai, pdf, prompts, site
 
 # Bir dergi yeniden harvest edilmeden önce indeksin "taze" sayıldığı süre.
 HARVEST_TTL = 6 * 3600
+
+# search_articles için varsayılan max_scan. Yerelde 2000 (tam kapsam). Paylaşılan/hosted
+# dağıtımda (ör. FastMCP Cloud) soğuk-harvest süresini/timeout'u sınırlamak için
+# DERGIPARK_MAX_SCAN_DEFAULT env'i ile düşürülebilir (kullanıcı yine elle artırabilir).
+try:
+    _DEFAULT_MAX_SCAN = max(50, int(os.environ.get("DERGIPARK_MAX_SCAN_DEFAULT", "2000")))
+except ValueError:
+    _DEFAULT_MAX_SCAN = 2000
 
 # get_article gibi araçların döndürdüğü metadata DergiPark'tan gelir (dış içerik).
 SOURCE_NOTICE = (
@@ -353,7 +362,7 @@ async def search_articles(
     article_type: str | None = None,
     sort: str = "relevance",
     include_abstract: bool = True,
-    max_scan: int = 2000,
+    max_scan: int = _DEFAULT_MAX_SCAN,
     ctx: Context | None = None,
 ) -> dict:
     """Bir dergi İÇİNDE Türkçe-duyarlı anahtar kelime araması.
@@ -376,8 +385,8 @@ async def search_articles(
         article_type: Makale türü filtresi (örn. "Research Article").
         sort: "relevance" (varsayılan), "newest" veya "oldest".
         include_abstract: False ise özetler kısaltılmadan tamamen çıkarılır (token).
-        max_scan: İndekslenecek en fazla makale (recall/hız dengesi). Varsayılan 2000
-            çoğu dergiyi TAMAMEN kapsar. Daha büyük dergilerde tamamı için artırın
+        max_scan: İndekslenecek en fazla makale (recall/hız dengesi). Varsayılan (yerelde)
+            2000 çoğu dergiyi TAMAMEN kapsar. Daha büyük dergilerde tamamı için artırın
             (sonuç notu eksik kapsama olup olmadığını bildirir).
     """
     journal = journal.strip().strip("/")
