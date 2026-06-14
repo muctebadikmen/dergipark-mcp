@@ -147,7 +147,12 @@ async def aclose() -> None:
     """
     global _client, _semaphore, _rate_lock, _last_request_ts
     if _client is not None:
-        await _client.aclose()
+        try:
+            await _client.aclose()
+        except RuntimeError:
+            # Farklı/kapalı bir event loop'ta yaratılmış olabilir (test izolasyonu) —
+            # bağlantılar süreç sonunda zaten serbest kalır.
+            pass
         _client = None
     _semaphore = None
     _rate_lock = None

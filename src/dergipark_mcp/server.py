@@ -613,20 +613,21 @@ async def get_article_references(article: str) -> dict:
 @mcp.resource(
     "dergipark://journal/{slug}",
     name="DergiPark dergisi",
-    description="Bir derginin künyesi (ad, yayıncı, konular, URL).",
+    description="Bir derginin künyesi (ad, yayıncı, konular, URL). Index üyeliği için get_journal_info.",
     mime_type="application/json",
 )
 async def journal_resource(slug: str) -> dict:
-    """dergipark://journal/<slug> → dergi künyesi + index/dizin üyeliği."""
+    """dergipark://journal/<slug> → dergi künyesi (gömülü dizinden, ANINDA/ağsız).
+
+    Index/dizin üyeliği (TR Dizin vb.) için get_journal_info aracını kullanın
+    (o, dergi sayfasını canlı çeker).
+    """
     slug = slug.strip().strip("/")
     entries = await directory.get_directory()
     match = next((e for e in entries if e.slug == slug), None)
-    idx = await site.fetch_journal_indexes(slug)
     base: dict = {
         "url": f"{directory.BASE_URL}/en/pub/{slug}",
         "resource_uri": f"dergipark://journal/{slug}",
-        "tr_dizin": idx["tr_dizin"],
-        "indexes": idx["indexes"],
     }
     if match is None:
         return {"slug": slug, "note": "Dizinde bulunamadı; slug doğrudan kullanıldı.", **base}
