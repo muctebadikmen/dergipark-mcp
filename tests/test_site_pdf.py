@@ -159,6 +159,37 @@ def test_readable_ratio_distinguishes_garbled():
     assert pdf.readable_ratio(garbled) < 0.50
 
 
+def test_assess_page_numbers_only_is_unreliable():
+    # mulkiye/1000 vakası: taranmış PDF'ten yalnızca sayfa numaraları çıkıyor.
+    pages = ["17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27"]
+    has_text, reliable, note = pdf._assess(pages)
+    assert has_text is False
+    assert reliable is False
+    assert note and "taranmış" in note.lower()
+
+
+def test_assess_real_prose_is_reliable():
+    pages = [
+        "Bu çalışma okul öncesi öğretmen adaylarının eleştirel düşünme becerilerini "
+        "incelemektedir. Araştırma nicel ilişkisel tarama deseninde yürütülmüştür ve "
+        "iki yüz altmış iki öğretmen adayı örneklem olarak seçilmiştir."
+    ]
+    has_text, reliable, note = pdf._assess(pages)
+    assert has_text is True and reliable is True and note is None
+
+
+def test_assess_garbled_font_is_unreliable():
+    pages = ["zŦůŵĂǌ dŽƉůƵŵƵŶ ^ŝǇĂƐĞƚŝ DĂŬĂůĞ ƂŶĚĞƌŝŵ ,ĂďĞƌŵĂƐ ƚĂƌƨƔŦŵ ǇĂǌĂƌ"]
+    has_text, reliable, note = pdf._assess(pages)
+    assert reliable is False
+    assert note and "güvenilir" in note.lower()
+
+
+def test_assess_empty_is_unreliable():
+    has_text, reliable, note = pdf._assess(["", "  ", "\n"])
+    assert has_text is False and reliable is False
+
+
 def test_pdf_extract_minimal():
     # Metin içeren minimal, geçerli bir PDF (tek sayfa, "Hello DergiPark").
     minimal = _minimal_pdf_bytes()

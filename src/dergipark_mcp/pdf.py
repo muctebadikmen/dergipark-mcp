@@ -140,6 +140,40 @@ def _normalize(text: str) -> str:
     return text.strip()
 
 
+def _assess(pages: list[str]) -> tuple[bool, bool, str | None]:
+    """Çıkarılan sayfalardan (has_text, text_reliable, note) kararı verir.
+
+    DÜRÜSTLÜK çekirdeği. Üç başarısızlık biçimini yakalar:
+      1) Hiç/çok az içerik → taranmış (görüntü) belge.
+      2) İçerik çoğunlukla RAKAM/SİMGE (gerçek kelime yok; ör. yalnızca sayfa
+         numaraları çıkmış) → taranmış belge; metin GÜVENİLMEZ. (mulkiye/1000 vakası)
+      3) Harf var ama egzotik/yanlış glyph (bozuk-font) → readable_ratio düşük.
+    """
+    full = "\n".join(pages)
+    nonspace = sum(1 for c in full if not c.isspace())
+    letters = sum(1 for c in full if c.isalpha())
+    if nonspace <= 10:
+        return False, False, (
+            "Bu PDF'ten metin çıkarılamadı — büyük olasılıkla taranmış (görüntü) belge. "
+            "Güvenilir metin elde edilemedi (OCR yapılmaz)."
+        )
+    # Gerçek kelime yoksa (harf oranı çok düşük) → taranmış; sadece sayfa no/parça çıkmış.
+    if letters / nonspace < 0.5:
+        return False, False, (
+            "Anlamlı metin çıkmadı — büyük olasılıkla taranmış/görüntü belge (yalnızca sayfa "
+            "numarası gibi kopuk parçalar elde edildi). Metne GÜVENMEYİN; OCR yapılmaz. "
+            "Makaleyi orijinal kaynağından okuyun."
+        )
+    ratio = readable_ratio(full)
+    if ratio < READABLE_RATIO_THRESHOLD:
+        return True, False, (
+            f"DİKKAT: Çıkarılan metin güvenilir DEĞİL (okunabilir karakter oranı %{ratio * 100:.0f}). "
+            "PDF fontu düzgün Unicode (ToUnicode) eşlemesi içermiyor; çıkarılan metin bozuk/anlamsız. "
+            "Bu metne güvenmeyin — makaleyi orijinal kaynağından okuyun."
+        )
+    return True, True, None
+
+
 def extract(
     data: bytes,
     source_url: str,
@@ -170,31 +204,16 @@ def extract(
         for i, txt in enumerate(pages)
     )
     full_text = "\n".join(pages)
-    # Taranmış (görüntü) PDF'ler ~0 karakter verir; gerçek metin katmanı yüzlerce+.
-    has_text = sum(len(p.strip()) for p in pages) > 10
     has_more = end_idx < total
-    text_reliable = True
-    note = None
-    if not has_text:
-        if start_idx > 0 or has_more:
-            note = (
-                f"Çekilen sayfa aralığında ({start_idx + 1}-{end_idx}/{total}) anlamlı metin yok. "
-                "Aralığı genişletin/kaydırın (start_page, max_pages); ya da belge taranmış olabilir."
-            )
-        else:
-            note = (
-                "Bu PDF'ten metin çıkarılamadı — büyük olasılıkla taranmış (görüntü) bir belge. "
-                "Dürüstçe belirtmek gerekir ki güvenilir metin elde edilemedi (OCR yapılmaz)."
-            )
+    if not pages:
+        # İstenen sayfa aralığı belge dışında (start_page çok büyük) — taranmış DEĞİL.
+        has_text, text_reliable = False, False
+        note = (
+            f"Sayfa aralığında ({start_idx + 1}-{end_idx}/{total}) içerik yok. "
+            "start_page/max_pages değerlerini belge sayfa sayısına göre ayarlayın."
+        )
     else:
-        ratio = readable_ratio(full_text)
-        if ratio < READABLE_RATIO_THRESHOLD:
-            text_reliable = False
-            note = (
-                f"DİKKAT: Çıkarılan metin güvenilir DEĞİL (okunabilir karakter oranı %{ratio * 100:.0f}). "
-                "PDF fontu düzgün Unicode (ToUnicode) eşlemesi içermiyor; çıkarılan metin bozuk/anlamsız. "
-                "Bu metne güvenmeyin — makaleyi orijinal kaynağından okuyun."
-            )
+        has_text, text_reliable, note = _assess(pages)
 
     sections = split_sections(full_text) if (has_text and text_reliable) else []
 
