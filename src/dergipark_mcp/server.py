@@ -503,9 +503,14 @@ async def get_article_fulltext(
     if ctx is not None:
         await ctx.info("PDF indiriliyor ve metne çevriliyor…")
         await ctx.report_progress(progress=0, total=1)
-    extracted = await pdf.download_and_extract(
-        page.pdf_url, max_pages=max_pages, start_page=start_page
-    )
+    try:
+        extracted = await pdf.download_and_extract(
+            page.pdf_url, max_pages=max_pages, start_page=start_page
+        )
+    except ValueError as exc:
+        # PDF çok büyük / PDF değil gibi durumlar — yardımcı mesajı kullanıcıya ulaştır
+        # (mask_error_details ham istisnayı gizlerdi).
+        raise ToolError(str(exc)) from exc
     if ctx is not None:
         await ctx.report_progress(progress=1, total=1)
 

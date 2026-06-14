@@ -114,6 +114,18 @@ def _initials(given: str) -> str:
     return " ".join(pieces)
 
 
+def _lastfirst(given: str, family: str, *, initials: bool = False) -> str:
+    """"Soyad, Ad" biçimi — alanlardan biri boşsa baştaki/sondaki virgülü ÜRETMEZ.
+
+    family boş + given dolu → yalnızca given (önceki kod ", Ad" üretiyordu — hata).
+    """
+    g = _initials(given) if initials else (_clean(given) or "")
+    f = _clean(family) or ""
+    if f and g:
+        return f"{f}, {g}"
+    return f or g
+
+
 def _ascii_fold(text: str) -> str:
     """Türkçe/Unicode karakterleri ASCII'ye katlar (yalnızca BibTeX anahtarı için)."""
     # Türkçe'ye özgü dönüşümler (NFKD bunları kaybedebilir, önce elle eşle).
@@ -176,10 +188,7 @@ def to_bibtex(d: CitationData) -> str:
     fields: list[tuple[str, str]] = []
 
     if authors:
-        author_str = " and ".join(
-            f"{family}, {given}".rstrip(", ").rstrip() if given else family
-            for given, family in authors
-        )
+        author_str = " and ".join(_lastfirst(given, family) for given, family in authors)
         fields.append(("author", author_str))
 
     title = _clean(d.title)
@@ -235,10 +244,7 @@ def to_ris(d: CitationData) -> str:
     lines: list[str] = ["TY  - JOUR"]
 
     for given, family in _structured(d):
-        if given:
-            lines.append(f"AU  - {family}, {given}")
-        else:
-            lines.append(f"AU  - {family}")
+        lines.append(f"AU  - {_lastfirst(given, family)}")
 
     title = _clean(d.title)
     if title:
@@ -372,10 +378,7 @@ def format_apa(d: CitationData) -> str:
     authors = _structured(d)
     author_segment = ""
     if authors:
-        formatted = [
-            f"{family}, {_initials(given)}".rstrip(", ").rstrip() if given else family
-            for given, family in authors
-        ]
+        formatted = [_lastfirst(given, family, initials=True) for given, family in authors]
         if len(formatted) == 1:
             author_segment = formatted[0]
         else:
@@ -422,7 +425,7 @@ def format_mla(d: CitationData) -> str:
     author_segment = ""
     if authors:
         first_given, first_family = authors[0]
-        first = f"{first_family}, {first_given}".strip().rstrip(",") if first_given else first_family
+        first = _lastfirst(first_given, first_family)
         if len(authors) >= 3:
             author_segment = f"{first}, et al."
         elif len(authors) == 2:
@@ -518,7 +521,7 @@ def format_chicago(d: CitationData) -> str:
     author_segment = ""
     if authors:
         first_given, first_family = authors[0]
-        first = f"{first_family}, {first_given}".strip().rstrip(",") if first_given else first_family
+        first = _lastfirst(first_given, first_family)
         if len(authors) >= 3:
             author_segment = f"{first}, et al."
         elif len(authors) == 2:
@@ -561,10 +564,7 @@ def format_harvard(d: CitationData) -> str:
     authors = _structured(d)
     author_segment = ""
     if authors:
-        formatted = [
-            f"{family}, {_initials(given)}".rstrip(", ").rstrip() if given else family
-            for given, family in authors
-        ]
+        formatted = [_lastfirst(given, family, initials=True) for given, family in authors]
         if len(formatted) == 1:
             author_segment = formatted[0]
         else:

@@ -92,6 +92,7 @@ class Cache:
             return None
 
     def _disk_get(self, key: str) -> Any:
+        """Diskten (expiry, value) ikilisi döndürür; yoksa/expired ise ``_MISSING``."""
         conn = self._ensure_db()
         if conn is None:
             return _MISSING
@@ -112,7 +113,7 @@ class Cache:
                 pass
             return _MISSING
         try:
-            return json.loads(value)
+            return (expiry, json.loads(value))
         except Exception:
             return _MISSING
 
@@ -148,10 +149,12 @@ class Cache:
                 self._mem.move_to_end(k)
                 return value
             del self._mem[k]
-        # Bellekte yok → disk
-        disk_val = self._disk_get(k)
-        if disk_val is not _MISSING:
-            self._mem[k] = (now + self.default_ttl, disk_val)
+        # Bellekte yok → disk. Diskteki GERÇEK expiry korunur (sahte default_ttl
+        # ile değil) — böylece bellek katmanı girişin asıl ömrünü saygı gösterir.
+        disk_hit = self._disk_get(k)
+        if disk_hit is not _MISSING:
+            disk_expiry, disk_val = disk_hit
+            self._mem[k] = (disk_expiry, disk_val)
             self._mem.move_to_end(k)
             self._evict()
             return disk_val

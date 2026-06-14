@@ -9,8 +9,19 @@
 import importlib.util
 from pathlib import Path
 
+from PyInstaller.utils.hooks import copy_metadata, collect_submodules
+
 pkg = Path(importlib.util.find_spec("dergipark_mcp").origin).parent
 datas = [(str(pkg / "data" / "journals.json"), "dergipark_mcp/data")]
+
+# KRİTİK: fastmcp/mcp çalışma anında importlib.metadata.version("fastmcp") çağırır.
+# Dist metadata pakete dahil edilmezse binary açılışta PackageNotFoundError ile çöker.
+# (Doğrulandı: bu olmadan binary başlamaz.)
+for dist in ("fastmcp", "mcp", "pydantic", "httpx", "platformdirs"):
+    try:
+        datas += copy_metadata(dist, recursive=True)
+    except Exception:
+        pass
 
 # FastMCP ve bağımlılıkları bazı modülleri dinamik içe alır → gizli importlar.
 hiddenimports = [
@@ -25,6 +36,7 @@ hiddenimports = [
     "dergipark_mcp.citations",
     "dergipark_mcp.prompts",
 ]
+hiddenimports += collect_submodules("fastmcp") + collect_submodules("mcp")
 
 a = Analysis(
     ["launcher.py"],

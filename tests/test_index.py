@@ -59,6 +59,23 @@ def test_query_terms_drop_stopwords():
     assert index._query_terms("ve ile bu") == []
 
 
+def test_stopword_turkish_icin_filtered():
+    # "için" katlanınca "icin" olur; stopword seti de katlanmış tutulduğundan elenmeli.
+    assert index._query_terms("eğitim için politika") == ["egitim", "politika"]
+
+
+def test_year_filter_year_only_date():
+    # Yıl-tek tarihli ("2020") kayıt, year_from=2020 ile DAHİL edilmeli
+    # (sözlüksel string karşılaştırması bunu yanlışlıkla elerdi).
+    ix = SearchIndex(":memory:")
+    ix.index_articles("t", [FakeArticle("9", title="eğitim çalışması", date="2020")])
+    total, rows = ix.search("t", "eğitim", year_from=2020)
+    assert {r["art_id"] for r in rows} == {"9"}
+    total2, rows2 = ix.search("t", "eğitim", year_from=2021)
+    assert total2 == 0
+    ix.close()
+
+
 def test_search_turkish_insensitive(idx):
     # Hepsi aynı sonucu vermeli (folding simetrik)
     for q in ["eğitim", "Eğitim", "egitim", "EGITIM"]:

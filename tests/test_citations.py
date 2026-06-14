@@ -30,6 +30,18 @@ def two_author_with_doi() -> CitationData:
     return d
 
 
+def test_given_only_author_no_leading_comma():
+    # family boş (örn. mononim / soyadı çözümlenemedi) → baştan virgül ÜRETME
+    d = CitationData(title="Bir Başlık", year="2024", journal="Dergi",
+                     authors_structured=[("Mononym", "")], article_id="5")
+    bib = citations.to_bibtex(d)
+    assert "author = {Mononym}" in bib
+    assert "{, " not in bib and "{ ," not in bib
+    assert not citations.format_apa(d).lstrip().startswith(",")
+    au = [ln for ln in citations.to_ris(d).splitlines() if ln.startswith("AU")][0]
+    assert au == "AU  - Mononym"
+
+
 def three_author() -> CitationData:
     return CitationData(
         title="Üç Yazarlı Bir Çalışma",

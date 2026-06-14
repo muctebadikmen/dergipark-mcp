@@ -21,12 +21,6 @@ from pathlib import Path
 
 from .cache import cache_dir
 
-# Küçük Türkçe stopword listesi (çok yaygın, ayırt edici olmayan kelimeler).
-_STOPWORDS = {
-    "ve", "ile", "bir", "bu", "da", "de", "için", "olarak", "the", "of", "and",
-    "in", "on", "a", "an", "to", "ya", "veya", "mi", "mu",
-}
-
 _TR_MAP = str.maketrans({
     "ı": "i", "İ": "i", "I": "i",
     "ş": "s", "Ş": "s",
@@ -42,6 +36,17 @@ def tr_fold(s: str | None) -> str:
     if not s:
         return ""
     return s.translate(_TR_MAP).casefold()
+
+
+# Küçük Türkçe/İngilizce stopword listesi. Sorgu terimleriyle aynı (KATLANMIŞ)
+# uzayda karşılaştırılması için fold edilmiş tutulur; aksi halde "için" → "icin"
+# eşleşmez ve hiç filtrelenmezdi (hata düzeltildi).
+_STOPWORDS = {
+    tr_fold(w) for w in {
+        "ve", "ile", "bir", "bu", "da", "de", "için", "olarak", "the", "of",
+        "and", "in", "on", "a", "an", "to", "ya", "veya", "mi", "mu",
+    }
+}
 
 
 def _query_terms(query: str) -> list[str]:
@@ -169,12 +174,15 @@ class SearchIndex:
             "WHERE articles_fts MATCH ? AND a.journal_slug=?"
         )
         params: list = [match, journal_slug]
+        # Yıl filtresi: tarihin YIL bileşeni üzerinden karşılaştır. (Sözlüksel
+        # string karşılaştırması "2021" gibi yıl-tek tarihleri yanlış eler;
+        # CAST(substr(...)) sağlamdır — "2021" ve "2021-05-01" ikisi de 2021 olur.)
         if year_from:
-            sql += " AND a.date >= ?"
-            params.append(f"{year_from}-01-01")
+            sql += " AND a.date IS NOT NULL AND CAST(substr(a.date,1,4) AS INTEGER) >= ?"
+            params.append(int(year_from))
         if year_to:
-            sql += " AND a.date <= ?"
-            params.append(f"{year_to}-12-31")
+            sql += " AND a.date IS NOT NULL AND CAST(substr(a.date,1,4) AS INTEGER) <= ?"
+            params.append(int(year_to))
         sql += " ORDER BY score LIMIT 3000"
 
         rows = [dict(r) for r in self._conn.execute(sql, params).fetchall()]

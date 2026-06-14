@@ -103,17 +103,23 @@ def citation_authors(meta: dict) -> list[dict]:
     """``citation_author`` + paralel ``citation_author_institution``/``_orcid`` dizilerini
     sıraya göre eşleştirir → ``[{name, affiliation, orcid}]``.
 
-    DergiPark bu üç meta'yı aynı sırada yayınlar (doğrulandı).
+    DergiPark bu üç meta'yı çoğunlukla aynı sırada yayınlar; ANCAK bir yazarın
+    afiliasyonu/ORCID'i yoksa o meta etiketi atlanabilir → diziler kısalır ve
+    indeks kayar. YANLIŞ atfı önlemek için: bir yan dizi yazar sayısıyla TAM
+    eşleşmiyorsa o alanı hiç eşleştirmeyiz (None bırakırız). Doğruluk > eksiksizlik.
     """
     names = _as_list(meta.get("citation_author"))
     insts = _as_list(meta.get("citation_author_institution"))
     orcids = _as_list(meta.get("citation_author_orcid"))
+    n = len(names)
+    insts_aligned = insts if len(insts) == n else None
+    orcids_aligned = orcids if len(orcids) == n else None
     out: list[dict] = []
     for i, name in enumerate(names):
         out.append({
             "name": name,
-            "affiliation": insts[i] if i < len(insts) else None,
-            "orcid": orcids[i] if i < len(orcids) else None,
+            "affiliation": insts_aligned[i] if insts_aligned else None,
+            "orcid": orcids_aligned[i] if orcids_aligned else None,
         })
     return out
 

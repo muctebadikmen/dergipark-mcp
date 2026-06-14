@@ -70,6 +70,22 @@ def test_rich_references_full_list():
     assert "-" not in page.references
 
 
+def test_citation_authors_no_misattribution_on_count_mismatch():
+    # Bir yazarın afiliasyonu eksik → institutions dizisi kısa. YANLIŞ atıf OLMAMALI:
+    # institutions yazar sayısıyla eşleşmediği için tüm afiliasyonlar None döner.
+    meta = {
+        "citation_author": ["A Yazar", "B Yazar"],
+        "citation_author_institution": "Üniversite X",  # tek (eksik hizalama)
+        "citation_author_orcid": ["0000-0000-0000-0001", "0000-0000-0000-0002"],
+    }
+    authors = site.citation_authors(meta)
+    assert [a["name"] for a in authors] == ["A Yazar", "B Yazar"]
+    assert all(a["affiliation"] is None for a in authors)  # misattribution yok
+    # orcid sayısı eşleştiği için doğru hizalanır
+    assert authors[0]["orcid"].endswith("0001")
+    assert authors[1]["orcid"].endswith("0002")
+
+
 def test_citation_author_single_string():
     page = site.parse_article_html(read_fixture("article.html"), "http://x")
     authors = site.citation_authors(page.citation_meta)
