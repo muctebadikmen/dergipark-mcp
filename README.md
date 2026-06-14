@@ -1,5 +1,7 @@
 # DergiPark MCP
 
+🇹🇷 Türkçe (bu dosya) · 🇬🇧 [English](README.en.md)
+
 [DergiPark](https://dergipark.org.tr) (Türkiye'nin TÜBİTAK ULAKBİM akademik dergi platformu) için bir **Model Context Protocol (MCP)** sunucusu. Claude (Desktop/Code) ve diğer MCP istemcilerinin **~2.550 DergiPark dergisini** keşfetmesini, dergi içinde **Türkçe-duyarlı** arama yapmasını, zengin makale künyeleri + **8 atıf formatı** üretmesini ve tam metinleri (PDF) okumasını sağlar.
 
 ---
@@ -24,11 +26,12 @@ Mevcut DergiPark MCP'leri siteyi **kazıyarak** (scraping) + **ücretli CAPTCHA 
 
 ## Ne yapar?
 
-### 🔧 Araçlar (6)
+### 🔧 Araçlar (7)
 
 | Araç | Açıklama |
 |---|---|
-| `list_journals` | **Tam dizin** (~2.550 dergi) içinde ada/slug + **konuya** göre ara; sayfalı; en yaygın konuları gösterir. |
+| `list_journals` | **Tam dizin** (~2.550 dergi) içinde ada/slug + **konuya** göre ara; sayfalı; en yaygın konuları gösterir. Arka planda kendiliğinden güncellenir. |
+| `get_journal_info` | Bir derginin künyesi + **index/dizin üyeliği** (TR Dizin, DOAJ, Scopus, EBSCO, SOBIAD…) ve `tr_dizin` bayrağı — terfi/teşvik için kritik. |
 | `list_journal_articles` | Bir derginin makalelerini listele (tarih filtreli, sayfalı). |
 | `search_articles` | Bir dergi **içinde** **Türkçe-duyarlı** anahtar kelime araması (SQLite FTS5 + BM25). Yıl/yazar/tür filtresi, sıralama, sayfalama. |
 | `get_article` | Zengin künye: yazar **+ afiliasyon + ORCID**, DOI, ISSN, cilt/sayı/sayfa, anahtar kelime + **8 atıf formatı**. |
@@ -49,6 +52,8 @@ Mevcut DergiPark MCP'leri siteyi **kazıyarak** (scraping) + **ücretli CAPTCHA 
 - **Türkçe-duyarlı arama:** `İ/ı/ş/ğ/ü/ö/ç` katlanır → "eğitim" ≈ "Eğitim" ≈ "egitim"; ön-ek eşleşir (eğitim → eğitimde). İlk arama indeksler, sonrakiler **anında** (kalıcı önbellek).
 - **8 atıf formatı:** APA, MLA, IEEE, Chicago, Harvard, BibTeX, RIS, CSL-JSON — Türkçe karakterler korunarak.
 - **Zengin meta:** yapısal yazar (given/family), **afiliasyon, ORCID**, DOI, ISSN — `oai_dc` + `oai_mods` + makale HTML birleştirilerek.
+- **TR-Dizin/index rozetleri:** bir derginin **TR Dizin/ULAKBİM**, DOAJ, Scopus, EBSCO, SOBIAD üyeliği + `tr_dizin` bayrağı (terfi/teşvikte önemli).
+- **Dinamik dizin:** dergi listesi her zaman anında döner ve arka planda günde bir kez kendiliğinden tazelenir — yeni açılan dergiler otomatik gelir.
 - **Çok-katmanlı önbellek** (bellek + opsiyonel disk) → siteye saygı + hız.
 - **Dürüstlük:** bozuk-font/taranmış PDF "gerçek metin" gibi sunulmaz; `text_reliable=false` ile işaretlenir.
 
@@ -111,6 +116,7 @@ cd packaging && mcpb validate manifest.json && mcpb pack
 ## 🗣️ Örnek kullanım (Claude'a doğal dille)
 
 - *"Eğitim konulu DergiPark dergilerini listele."* → `list_journals(subject=…)`
+- *"mulkiye dergisi TR Dizin'de mi? Hangi indekslerde taranıyor?"* → `get_journal_info`
 - *"mulkiye dergisinde 'siyaset' geçen 2015 sonrası makaleleri ara, en yeniden eskiye sırala."*
 - *"Şu makalenin künyesini APA ve IEEE formatında ver: https://dergipark.org.tr/tr/pub/mulkiye/article/1000"*
 - *"29mayisegitim/1816398 makalesinin tam metnini oku ve yöntem bölümünü özetle."*

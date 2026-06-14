@@ -3,7 +3,7 @@
 OAI-PMH tabanlı, robots.txt'e uyumlu, CAPTCHA gerektirmeyen erişim katmanı.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 BASE_URL = "https://dergipark.org.tr"
 OAI_URL = f"{BASE_URL}/api/public/oai/"
