@@ -150,6 +150,80 @@ def citation_bibliographic(meta: dict) -> dict:
     }
 
 
+# Dergi "Indexes/Dizinler/Abstracting & Indexing" bölümünü tanıyan başlıklar.
+_INDEX_HEADINGS = {
+    "indexes", "index", "indexing", "dizinler", "dizin",
+    "abstracting & indexing", "abstracting and indexing",
+}
+# Metin-temelli kartlarda (anchor yoksa) tanınacak bilinen index adları.
+_KNOWN_INDEXES = [
+    "TR Dizin", "TR-Dizin", "ULAKBİM", "ULAKBIM", "TÜBİTAK-Ulakbim",
+    "DOAJ", "Scopus", "Web of Science", "EBSCO", "EBSCOhost", "SOBIAD",
+    "Index Copernicus", "ERIC", "Crossref", "CrossRef", "Scilit", "ProQuest",
+    "Google Scholar", "MIAR", "ASOS", "ROAD", "Sherpa",
+]
+
+
+def parse_journal_indexes(html: str) -> dict:
+    """Dergi landing sayfasından index/dizin bilgisini çıkarır (en iyi çaba).
+
+    Döndürür: ``{"indexes": [adlar], "tr_dizin": bool}``. TR Dizin bayrağı, DergiPark'ın
+    resmî "Indexes/Dizinler" bölümünden gelir (terfide TR-Dizin üyeliği sayılır).
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: str) -> None:
+        name = name.strip()
+        if not name or len(name) > 40:
+            return
+        key = name.lower().replace("-", " ").replace("ı", "i")
+        if key in seen or name.lower() in _INDEX_HEADINGS:
+            return
+        seen.add(key)
+        names.append(name)
+
+    for h in soup.find_all(["h2", "h3", "h4", "h5"]):
+        htxt = h.get_text(" ", strip=True)
+        if htxt.lower() not in _INDEX_HEADINGS:
+            continue
+        # Başlıktan sonra index adlarını içeren dar kart gövdesini bul.
+        node = h
+        for _ in range(6):
+            node = node.find_parent()
+            if node is None:
+                break
+            full = node.get_text(" ", strip=True)
+            after = full.split(htxt, 1)[-1].strip()
+            if after and len(after) <= 300:
+                # (a) anchor metinleri
+                for a in node.find_all("a"):
+                    _add(a.get_text(" ", strip=True))
+                # (b) anchor yoksa: bilinen index adlarını metinde ara
+                for known in _KNOWN_INDEXES:
+                    if known.lower() in after.lower():
+                        _add(known)
+                break
+
+    tr_dizin = any(
+        n.lower().replace("-", " ").startswith("tr dizin") for n in names
+    )
+    return {"indexes": names, "tr_dizin": tr_dizin}
+
+
+async def fetch_journal_indexes(slug: str) -> dict:
+    """Dergi landing sayfasını çekip index bilgisini döndürür (önbellekli)."""
+    url = f"{BASE_URL}/en/pub/{slug}"
+    try:
+        html = await default_cache.get_or_compute(
+            f"journalpage:{slug}", lambda: http.get_text(url), ttl=_PAGE_TTL
+        )
+    except Exception:
+        return {"indexes": [], "tr_dizin": False}
+    return parse_journal_indexes(html)
+
+
 async def fetch_article_page(url: str) -> ArticlePage:
     html = await default_cache.get_or_compute(
         f"page:{url}", lambda: http.get_text(url), ttl=_PAGE_TTL

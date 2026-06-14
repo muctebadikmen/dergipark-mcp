@@ -11,6 +11,7 @@
   },
   "homepage": "https://github.com/muctebadikmen/dergipark-mcp",
   "license": "MIT",
+  "icon": "icon.png",
   "keywords": ["dergipark", "oai-pmh", "academic", "turkish", "research", "citations"],
   "server": {
     "type": "binary",

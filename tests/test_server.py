@@ -28,12 +28,22 @@ async def test_tools_are_registered():
     names = {t.name for t in tools}
     assert {
         "list_journals",
+        "get_journal_info",
         "list_journal_articles",
         "search_articles",
         "get_article",
         "get_article_fulltext",
         "get_article_references",
     } <= names
+
+
+async def test_journal_info_tr_dizin_live():
+    async with Client(mcp) as client:
+        res = await client.call_tool("get_journal_info", {"journal": "mulkiye"})
+    data = res.data
+    assert data["tr_dizin"] is True
+    assert isinstance(data["indexes"], list)
+    assert data["name"]
 
 
 async def test_get_article_via_client():

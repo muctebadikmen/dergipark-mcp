@@ -261,6 +261,38 @@ async def list_journals(
 
 
 @mcp.tool(annotations=READONLY)
+async def get_journal_info(journal: str) -> dict:
+    """Bir derginin künyesi + INDEX/DİZİN üyeliği (TR Dizin dahil).
+
+    Türk akademisinde bir derginin **TR Dizin/ULAKBİM** indeksinde olup olmaması terfi
+    ve teşvikte önemlidir. Bu araç, derginin DergiPark sayfasından index bilgisini
+    (TR Dizin, DOAJ, Scopus, EBSCO, SOBIAD…) çıkarır ve ``tr_dizin`` bayrağı döndürür.
+    (En iyi çaba: bazı dergiler index bölümünü farklı/eksik doldurabilir.)
+
+    Args:
+        journal: Dergi slug'ı (örn. "mulkiye").
+    """
+    journal = journal.strip().strip("/")
+    entries = await directory.get_directory()
+    match = next((e for e in entries if e.slug == journal), None)
+    idx = await site.fetch_journal_indexes(journal)
+    info: dict = {
+        "slug": journal,
+        "url": f"{directory.BASE_URL}/en/pub/{journal}",
+        "resource_uri": f"dergipark://journal/{journal}",
+        "tr_dizin": idx["tr_dizin"],
+        "indexes": idx["indexes"],
+    }
+    if match:
+        info["name"] = match.name
+        info["publisher"] = match.publisher
+        info["subjects"] = match.subjects
+    else:
+        info["note"] = "Dizinde bulunamadı; slug doğrudan kullanıldı (geçerli olabilir)."
+    return info
+
+
+@mcp.tool(annotations=READONLY)
 async def list_journal_articles(
     journal: str,
     from_date: str | None = None,
@@ -585,21 +617,20 @@ async def get_article_references(article: str) -> dict:
     mime_type="application/json",
 )
 async def journal_resource(slug: str) -> dict:
-    """dergipark://journal/<slug> → dergi künyesi (gömülü dizinden, ağsız)."""
+    """dergipark://journal/<slug> → dergi künyesi + index/dizin üyeliği."""
     slug = slug.strip().strip("/")
     entries = await directory.get_directory()
     match = next((e for e in entries if e.slug == slug), None)
-    if match is None:
-        return {
-            "slug": slug,
-            "url": f"{directory.BASE_URL}/en/pub/{slug}",
-            "note": "Dizinde bulunamadı; slug yine de geçerli olabilir (doğrudan erişin).",
-        }
-    return {
-        **match.to_dict(),
+    idx = await site.fetch_journal_indexes(slug)
+    base: dict = {
         "url": f"{directory.BASE_URL}/en/pub/{slug}",
         "resource_uri": f"dergipark://journal/{slug}",
+        "tr_dizin": idx["tr_dizin"],
+        "indexes": idx["indexes"],
     }
+    if match is None:
+        return {"slug": slug, "note": "Dizinde bulunamadı; slug doğrudan kullanıldı.", **base}
+    return {**match.to_dict(), **base}
 
 
 @mcp.resource(

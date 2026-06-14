@@ -93,6 +93,23 @@ def test_citation_author_single_string():
     assert authors[0]["name"] == "Fahri Bakırcı"
 
 
+def test_parse_journal_indexes():
+    idx = site.parse_journal_indexes(read_fixture("journal_page.html"))
+    assert idx["tr_dizin"] is True
+    low = [n.lower().replace("-", " ") for n in idx["indexes"]]
+    assert any(n.startswith("tr dizin") for n in low)
+    assert any("scilit" in n for n in low)
+    assert any("sobiad" in n for n in low)
+    # "Aim & Scope" bölümündeki "Scopus" kelimesi index sayılmamalı (kart-kapsamlı)
+    assert not any("scopus" in n for n in low)
+
+
+def test_parse_journal_indexes_none():
+    idx = site.parse_journal_indexes("<html><body><p>index yok</p></body></html>")
+    assert idx["tr_dizin"] is False
+    assert idx["indexes"] == []
+
+
 def test_split_sections_turkish_english():
     text = (
         "Makale başlığı ve yazarlar\n\n"
