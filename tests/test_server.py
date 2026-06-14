@@ -112,6 +112,24 @@ async def test_fulltext_via_client():
     assert "markdown" in data
 
 
+async def test_article_resource_live():
+    import json
+    async with Client(mcp) as client:
+        got = await client.read_resource("dergipark://article/1000")
+    data = json.loads(got[0].text)
+    assert data["id"] == "1000"
+    assert data["resource_uri"] == "dergipark://article/1000"
+
+
+async def test_search_results_have_resource_uri():
+    async with Client(mcp) as client:
+        res = await client.call_tool(
+            "search_articles", {"query": "siyaset", "journal": "mulkiye", "limit": 2}
+        )
+    if res.data["results"]:
+        assert res.data["results"][0]["resource_uri"].startswith("dergipark://article/")
+
+
 async def test_resolve_bad_id():
     # Çözümlenemez girdi artık ToolError yükseltir (dict'te "error" yerine).
     async with Client(mcp) as client:

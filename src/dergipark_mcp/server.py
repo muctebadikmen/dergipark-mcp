@@ -19,7 +19,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import citations, directory, index, oai, pdf, site
+from . import citations, directory, index, oai, pdf, prompts, site
 
 # Bir dergi yeniden harvest edilmeden önce indeksin "taze" sayıldığı süre.
 HARVEST_TTL = 6 * 3600
@@ -157,6 +157,21 @@ def _enrich_article_from_page(article: oai.Article, page: "site.ArticlePage") ->
         article.publisher = biblio["publisher"]
 
 
+async def _enriched_article(numeric: str, url: str | None = None, ctx: Context | None = None) -> oai.Article:
+    """Birleştirilmiş metadata (oai_dc + oai_mods) + makale HTML zenginleştirmesi."""
+    meta = await oai.get_record_merged(numeric)
+    art_url = url or meta.url
+    if art_url:
+        if ctx is not None:
+            await ctx.info("Makale sayfası zenginleştirme için okunuyor…")
+        try:
+            page = await site.fetch_article_page(art_url)
+            _enrich_article_from_page(meta, page)
+        except Exception:
+            pass
+    return meta
+
+
 def _citation_data(a: oai.Article) -> citations.CitationData:
     year = (a.date or "")[:4] or None
     authors = a.authors or [d.name for d in a.authors_detailed]
@@ -219,7 +234,9 @@ async def list_journals(
         "directory_size": len(entries),
         "query": query,
         "subject": subject,
-        "journals": [e.to_dict() for e in page],
+        "journals": [
+            {**e.to_dict(), "resource_uri": f"dergipark://journal/{e.slug}"} for e in page
+        ],
     }
     if not query and not subject:
         top = list(directory.subject_counts(entries).items())[:25]
@@ -359,6 +376,7 @@ async def search_articles(
             "authors": r["authors"].split("; ") if r["authors"] else [],
             "date": r["date"],
             "url": r["url"],
+            "resource_uri": f"dergipark://article/{r['art_id']}",
         }
         if r["article_type"]:
             item["article_type"] = r["article_type"]
@@ -423,21 +441,12 @@ async def get_article(
             "Sayısal id, tam makale URL'si veya 'slug/id' biçimi verin."
         )
     try:
-        meta = await oai.get_record_merged(numeric)
+        meta = await _enriched_article(numeric, url, ctx)
     except oai.OAIError as exc:
         raise ToolError(f"Makale bulunamadı ({numeric}): {exc.code}") from exc
 
-    art_url = url or meta.url
-    if art_url:
-        if ctx is not None:
-            await ctx.info("Makale sayfası zenginleştirme için okunuyor…")
-        try:
-            page = await site.fetch_article_page(art_url)
-            _enrich_article_from_page(meta, page)
-        except Exception:
-            pass  # zenginleştirme başarısızsa OAI metadata yine döner
-
     result = meta.to_dict()
+    result["resource_uri"] = f"dergipark://article/{numeric}"
     if not include_abstract:
         result.pop("abstract", None)
         result.pop("abstract_en", None)
@@ -550,6 +559,59 @@ async def get_article_references(article: str) -> dict:
         else:
             result["note"] = "Bu makale için yapılandırılmış referans listesi bulunamadı."
     return result
+
+
+# --------------------------------------------------------------------------- #
+# Kaynaklar (Resources)
+# --------------------------------------------------------------------------- #
+
+@mcp.resource(
+    "dergipark://journal/{slug}",
+    name="DergiPark dergisi",
+    description="Bir derginin künyesi (ad, yayıncı, konular, URL).",
+    mime_type="application/json",
+)
+async def journal_resource(slug: str) -> dict:
+    """dergipark://journal/<slug> → dergi künyesi (gömülü dizinden, ağsız)."""
+    slug = slug.strip().strip("/")
+    entries = await directory.get_directory()
+    match = next((e for e in entries if e.slug == slug), None)
+    if match is None:
+        return {
+            "slug": slug,
+            "url": f"{directory.BASE_URL}/en/pub/{slug}",
+            "note": "Dizinde bulunamadı; slug yine de geçerli olabilir (doğrudan erişin).",
+        }
+    return {
+        **match.to_dict(),
+        "url": f"{directory.BASE_URL}/en/pub/{slug}",
+        "resource_uri": f"dergipark://journal/{slug}",
+    }
+
+
+@mcp.resource(
+    "dergipark://article/{article_id}",
+    name="DergiPark makalesi",
+    description="Bir makalenin zengin metadata'sı (künye, yazar/afiliasyon, kalıcı kimlik).",
+    mime_type="application/json",
+)
+async def article_resource(article_id: str) -> dict:
+    """dergipark://article/<id> → zengin makale metadata'sı (atıf formatları hariç)."""
+    numeric = re.search(r"\d+", article_id)
+    if not numeric:
+        raise ToolError(f"Geçersiz makale kimliği: {article_id!r}")
+    try:
+        meta = await _enriched_article(numeric.group(0))
+    except oai.OAIError as exc:
+        raise ToolError(f"Makale bulunamadı ({article_id}): {exc.code}") from exc
+    result = meta.to_dict()
+    result["resource_uri"] = f"dergipark://article/{numeric.group(0)}"
+    result["source_notice"] = SOURCE_NOTICE
+    return result
+
+
+# Prompt şablonlarını bağla.
+prompts.register(mcp)
 
 
 def main() -> None:
