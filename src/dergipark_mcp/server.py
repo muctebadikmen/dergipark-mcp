@@ -206,6 +206,7 @@ async def list_journals(
     subject: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    refresh: bool = False,
     ctx: Context | None = None,
 ) -> dict:
     """DergiPark dergilerini ara/listele — TAM dizin (~2.550 dergi).
@@ -214,6 +215,10 @@ async def list_journals(
     (ikisi de büyük/küçük harf ve Türkçe-duyarsız). Sonuç ``limit``/``offset`` ile
     sayfalanır. Filtre yokken keşfi kolaylaştırmak için en yaygın konular da döner.
 
+    Dizin her zaman ANINDA döner ve arka planda günde bir kez kendiliğinden tazelenir
+    (yeni açılan dergiler otomatik gelir). ``refresh=True`` ile şimdi, canlı, eksiksiz
+    tazeleme isteyebilirsiniz — bu çağrı ~yarım dakika sürebilir (tüm dizin taranır).
+
     Args:
         query: Dergi adında/slug'ında geçen metin (örn. "eğitim", "mulkiye").
         subject: Konu etiketi filtresi. DergiPark konu taksonomisi İNGİLİZCEDİR
@@ -221,8 +226,11 @@ async def list_journals(
             Mevcut konular için filtresiz çağırıp available_subjects'e bakın.
         limit: Bu sayfada döndürülecek en fazla dergi.
         offset: Sayfalama kaydırması (0'dan başlar).
+        refresh: True ise dizini şimdi canlı olarak yeniden tarar (yavaş ama en güncel).
     """
-    entries = await directory.get_directory(ctx=ctx)
+    if refresh and ctx is not None:
+        await ctx.info("Dergi dizini canlı olarak yeniden taranıyor (~yarım dakika)…")
+    entries = await directory.get_directory(refresh=refresh, ctx=ctx)
     filtered = directory.filter_journals(entries, query=query, subject=subject)
     total = len(filtered)
     page = filtered[offset:offset + limit]

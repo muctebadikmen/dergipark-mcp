@@ -54,6 +54,47 @@ def test_load_embedded_shape():
     assert "count" in data
 
 
+# --- stale-while-revalidate (dinamik tazeleme) ---
+
+def _fresh_cache(monkeypatch):
+    from dergipark_mcp.cache import Cache
+    c = Cache(disk_enabled=False)
+    monkeypatch.setattr(directory, "default_cache", c)
+    return c
+
+
+async def test_refresh_true_uses_live_harvest(monkeypatch):
+    _fresh_cache(monkeypatch)
+    fake = [directory.JournalEntry("yenidergi", "Yeni Dergi", "Yayıncı", ["X"])]
+
+    async def fake_harvest(*a, **k):
+        return fake
+
+    monkeypatch.setattr(directory, "harvest_directory", fake_harvest)
+    ents = await directory.get_directory(refresh=True)
+    assert [e.slug for e in ents] == ["yenidergi"]
+    # önbelleğe yazıldı → sonraki normal çağrı taze sürümü sunar (gömülü değil)
+    assert directory._served_entries()[0].slug == "yenidergi"
+    assert not directory._is_stale()  # zaman damgası tazelendi
+
+
+async def test_auto_refresh_off_serves_embedded_without_network(monkeypatch):
+    _fresh_cache(monkeypatch)
+    monkeypatch.setenv("DERGIPARK_DIRECTORY_REFRESH", "0")
+
+    async def boom(*a, **k):
+        raise AssertionError("otomatik tazeleme kapalıyken ağa çıkılmamalı")
+
+    monkeypatch.setattr(directory, "harvest_directory", boom)
+    ents = await directory.get_directory()  # gömülü, arka plan görevi YOK
+    assert len(ents) > 2000
+
+
+def test_is_stale_true_when_no_timestamp(monkeypatch):
+    _fresh_cache(monkeypatch)
+    assert directory._is_stale() is True
+
+
 def test_embedded_directory_is_populated():
     # Pakete gömülü gerçek dizin ~2.5k dergi içermeli (build_directory.py çıktısı).
     entries = directory.embedded_entries()

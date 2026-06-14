@@ -17,18 +17,39 @@ Konu taksonomisi dizinin kendisindeki konu etiketlerinden türetilir
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import re
+import time
 from dataclasses import dataclass, field
 from importlib.resources import files
 
 from bs4 import BeautifulSoup
 
 from . import BASE_URL, http
-from .cache import default_cache
+from .cache import _MISSING, default_cache
 
 DIRECTORY_URL = f"{BASE_URL}/en/pub/explore/journals"
-_DIR_TTL = 7 * 24 * 3600  # 1 hafta
+
+# Stale-while-revalidate ayarları:
+#   - Liste her zaman ANINDA döner (gömülü ya da önbellekteki tazelenmiş sürüm).
+#   - Bayatladıysa (TTL aşıldıysa) arka planda BİR kez canlı tazeleme tetiklenir;
+#     mevcut çağrı beklemez. Böylece yeni dergiler otomatik gelir, DergiPark
+#     günde ≤1 kez yüklenir (her çağrıda DEĞİL).
+_REFRESH_TTL = float(os.environ.get("DERGIPARK_DIRECTORY_TTL", 24 * 3600))  # 1 gün
+_PERSIST_TTL = 30 * 24 * 3600  # tazelenmiş liste önbellekte bu kadar yaşar
+_CACHE_KEY = "directory:all"
+_TS_KEY = "directory:refreshed_at"
+
+_refresh_in_flight = False
+
+
+def _auto_refresh_enabled() -> bool:
+    return os.environ.get("DERGIPARK_DIRECTORY_REFRESH", "1").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
 
 # Keşif sayfasındaki /en/pub/<x> linklerinden dergi OLMAYANLAR.
 _NAV_SLUGS = {"subjects", "trends", "announcement", "explore", "journals", "search"}
@@ -162,23 +183,68 @@ def _entries_from_raw(raw: list[dict]) -> list[JournalEntry]:
     return out
 
 
+def _served_entries() -> list[JournalEntry]:
+    """ŞU AN sunulacak liste: önbellekte tazelenmiş sürüm varsa o, yoksa gömülü."""
+    cached = default_cache.get(_CACHE_KEY)
+    if cached is not _MISSING and cached:
+        return _entries_from_raw(cached)
+    return embedded_entries()
+
+
+def _is_stale() -> bool:
+    ts = default_cache.get(_TS_KEY)
+    if ts is _MISSING or not ts:
+        return True
+    return (time.time() - float(ts)) >= _REFRESH_TTL
+
+
+async def _refresh_now(ctx=None) -> list[JournalEntry]:
+    """Canlı tam tarama yapar, önbelleğe (+ zaman damgası) yazar, listeyi döndürür."""
+    ents = await harvest_directory(ctx=ctx)
+    if ents:
+        default_cache.set(_CACHE_KEY, [e.to_dict() for e in ents], ttl=_PERSIST_TTL)
+        default_cache.set(_TS_KEY, time.time(), ttl=_PERSIST_TTL)
+    return ents
+
+
+async def _background_refresh() -> None:
+    global _refresh_in_flight
+    try:
+        await _refresh_now()
+    except Exception:
+        pass  # tazeleme başarısızsa mevcut liste sunulmaya devam eder
+    finally:
+        _refresh_in_flight = False
+
+
+def _maybe_spawn_refresh() -> None:
+    """Bayatladıysa arka planda BİR tazeleme görevi başlatır (engellemez)."""
+    global _refresh_in_flight
+    if not _auto_refresh_enabled() or _refresh_in_flight or not _is_stale():
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    _refresh_in_flight = True
+    loop.create_task(_background_refresh())
+
+
 async def get_directory(refresh: bool = False, ctx=None) -> list[JournalEntry]:
-    """Tam dizini döndürür.
+    """Tam dizini döndürür (stale-while-revalidate).
 
-    Varsayılan: pakete gömülü statik JSON (anında, ağsız). Gömülü veri yoksa ya da
-    ``refresh=True`` ise canlı harvest yapılır (sonuç önbelleğe alınır).
+    Her zaman ANINDA döner: önbellekte tazelenmiş sürüm varsa onu, yoksa pakete
+    gömülü statik JSON'u. Liste bayatladıysa (``DERGIPARK_DIRECTORY_TTL``, vars. 1 gün)
+    arka planda BİR canlı tazeleme tetiklenir — bu çağrı beklemez, sonraki çağrılar
+    güncel listeyi alır. ``refresh=True`` ise hemen (engelleyerek) canlı tazeler.
+    Otomatik tazeleme ``DERGIPARK_DIRECTORY_REFRESH=0`` ile kapatılabilir.
     """
-    if not refresh:
-        cached = embedded_entries()
-        if cached:
-            return cached
-
-    async def factory():
-        ents = await harvest_directory(ctx=ctx)
-        return [e.to_dict() for e in ents]
-
-    raw = await default_cache.get_or_compute("directory:all", factory, ttl=_DIR_TTL)
-    return _entries_from_raw(raw)
+    if refresh:
+        ents = await _refresh_now(ctx=ctx)
+        return ents or _served_entries()
+    ents = _served_entries()
+    _maybe_spawn_refresh()
+    return ents
 
 
 # --------------------------------------------------------------------------- #
