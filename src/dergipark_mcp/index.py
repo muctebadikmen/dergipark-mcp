@@ -88,8 +88,13 @@ class SearchIndex:
         )
         c.execute(
             "CREATE TABLE IF NOT EXISTS harvest_meta("
-            "journal_slug TEXT PRIMARY KEY, harvested_at REAL, count INTEGER)"
+            "journal_slug TEXT PRIMARY KEY, harvested_at REAL, count INTEGER, complete INTEGER DEFAULT 0)"
         )
+        # Eski şemadan göç: 'complete' sütunu yoksa ekle (önbellek dosyası taşınabilir kalsın).
+        try:
+            c.execute("ALTER TABLE harvest_meta ADD COLUMN complete INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # sütun zaten var
         c.commit()
 
     # --------------------------------------------------------------- indexing
@@ -127,10 +132,10 @@ class SearchIndex:
         c.commit()
         return new
 
-    def mark_harvested(self, journal_slug: str, count: int) -> None:
+    def mark_harvested(self, journal_slug: str, count: int, complete: bool = True) -> None:
         self._conn.execute(
-            "INSERT OR REPLACE INTO harvest_meta(journal_slug,harvested_at,count) VALUES(?,?,?)",
-            (journal_slug, time.time(), count),
+            "INSERT OR REPLACE INTO harvest_meta(journal_slug,harvested_at,count,complete) VALUES(?,?,?,?)",
+            (journal_slug, time.time(), count, 1 if complete else 0),
         )
         self._conn.commit()
 
@@ -139,6 +144,13 @@ class SearchIndex:
             "SELECT harvested_at FROM harvest_meta WHERE journal_slug=?", (journal_slug,)
         ).fetchone()
         return bool(row and row["harvested_at"] and (time.time() - row["harvested_at"]) < ttl)
+
+    def is_complete(self, journal_slug: str) -> bool:
+        """Bu dergi için son harvest, derginin TAMAMINI kapsadı mı (cap'e takılmadı mı)?"""
+        row = self._conn.execute(
+            "SELECT complete FROM harvest_meta WHERE journal_slug=?", (journal_slug,)
+        ).fetchone()
+        return bool(row and row["complete"])
 
     def indexed_count(self, journal_slug: str) -> int:
         row = self._conn.execute(

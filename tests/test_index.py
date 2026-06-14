@@ -141,3 +141,13 @@ def test_dedup_no_duplicate_on_reindex(idx):
 
 def test_empty_query_returns_nothing(idx):
     assert idx.search("test", "ve ile") == (0, [])
+
+
+def test_coverage_complete_flag(idx):
+    # mark_harvested complete bayrağını doğru saklamalı
+    idx.mark_harvested("test", 4, complete=True)
+    assert idx.is_complete("test") is True
+    idx.mark_harvested("test", 4, complete=False)
+    assert idx.is_complete("test") is False
+    # hiç harvest edilmemiş dergi → complete değil
+    assert idx.is_complete("bilinmeyen") is False

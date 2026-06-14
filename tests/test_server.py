@@ -95,6 +95,7 @@ async def test_list_journal_articles_via_client():
 
 
 async def test_search_articles_via_client():
+    # Küçük max_scan ile mulkiye (1330+ makale) → kapsam EKSİK olmalı ve DÜRÜSTÇE bildirilmeli.
     async with Client(mcp) as client:
         res = await client.call_tool(
             "search_articles",
@@ -103,10 +104,13 @@ async def test_search_articles_via_client():
     data = res.data
     assert data["indexed"] > 0
     assert "results" in data and "total" in data
-    # ikinci arama indeksten anında (harvested_recently) çalışmalı
+    assert data["coverage_complete"] is False          # mulkiye 120'den büyük
+    assert data["note"] and "DİKKAT" in data["note"]   # eksik kapsam uyarısı
+    # ikinci arama (aynı max_scan) indeksten anında çalışmalı
     async with Client(mcp) as client:
         res2 = await client.call_tool(
-            "search_articles", {"query": "siyaset", "journal": "mulkiye", "sort": "newest"}
+            "search_articles",
+            {"query": "siyaset", "journal": "mulkiye", "sort": "newest", "max_scan": 120},
         )
     assert "results" in res2.data
 

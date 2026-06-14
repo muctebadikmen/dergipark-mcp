@@ -351,7 +351,7 @@ async def search_articles(
     article_type: str | None = None,
     sort: str = "relevance",
     include_abstract: bool = True,
-    max_scan: int = 500,
+    max_scan: int = 2000,
     ctx: Context | None = None,
 ) -> dict:
     """Bir dergi İÇİNDE Türkçe-duyarlı anahtar kelime araması.
@@ -374,7 +374,9 @@ async def search_articles(
         article_type: Makale türü filtresi (örn. "Research Article").
         sort: "relevance" (varsayılan), "newest" veya "oldest".
         include_abstract: False ise özetler kısaltılmadan tamamen çıkarılır (token).
-        max_scan: İlk indekslemede taranacak en fazla makale (hız/derinlik dengesi).
+        max_scan: İndekslenecek en fazla makale (recall/hız dengesi). Varsayılan 2000
+            çoğu dergiyi TAMAMEN kapsar. Daha büyük dergilerde tamamı için artırın
+            (sonuç notu eksik kapsama olup olmadığını bildirir).
     """
     journal = journal.strip().strip("/")
     if not index._query_terms(query):
@@ -385,9 +387,14 @@ async def search_articles(
         raise ToolError("sort yalnızca 'relevance', 'newest' veya 'oldest' olabilir.")
 
     idx = index.get_default_index()
-    if not idx.harvested_recently(journal, HARVEST_TTL):
+    # Harvest gerekli mi? İlk kez ya da: önceki harvest EKSİK (cap'e takıldı) ve
+    # şimdi daha derin tarama isteniyor (kullanıcı recall'ı artırmak için max_scan büyüttü).
+    need = not idx.harvested_recently(journal, HARVEST_TTL)
+    if not need and not idx.is_complete(journal) and idx.indexed_count(journal) < max_scan:
+        need = True
+    if need:
         if ctx is not None:
-            await ctx.info(f"'{journal}' ilk kez indeksleniyor (~{max_scan} makale taranıyor)…")
+            await ctx.info(f"'{journal}' indeksleniyor (en fazla {max_scan} makale taranıyor)…")
         articles = await oai.list_records(journal, max_records=max_scan)
         if not articles and idx.indexed_count(journal) == 0:
             return {
@@ -399,7 +406,8 @@ async def search_articles(
                 "note": "Dergi indekslenemedi — slug'ı doğrulayın (dergipark.org.tr/.../pub/<slug>/).",
             }
         idx.index_articles(journal, articles)
-        idx.mark_harvested(journal, len(articles))
+        # len == max_scan ise cap'e takıldık → derginin tamamı taranmamış olabilir.
+        idx.mark_harvested(journal, len(articles), complete=len(articles) < max_scan)
 
     total, rows = idx.search(
         journal, query,
@@ -425,11 +433,21 @@ async def search_articles(
             item["abstract"] = (ab[:300] + "…") if len(ab) > 300 else ab
         results.append(item)
 
-    note = None
+    indexed = idx.indexed_count(journal)
+    complete = idx.is_complete(journal)
+
+    notes: list[str] = []
     if total == 0:
-        note = "Eşleşme yok. Daha az/farklı kelime deneyin; max_scan'i artırın ya da filtreleri gevşetin."
+        notes.append("Eşleşme yok. Daha az/farklı kelime deneyin ya da filtreleri gevşetin.")
     elif total > offset + len(results):
-        note = f"{total} eşleşmeden {offset + 1}–{offset + len(results)} gösteriliyor. offset'i artırın."
+        notes.append(f"{total} eşleşmeden {offset + 1}–{offset + len(results)} gösteriliyor. offset'i artırın.")
+    if not complete:
+        # DÜRÜSTLÜK: dergi taranan makale sayısından büyük → sonuçlar EKSİK olabilir.
+        notes.append(
+            f"DİKKAT: Bu dergi {indexed}+ makale içeriyor; arama yalnızca taranan {indexed} makale "
+            f"üzerinde yapıldı, daha eski makaleler kapsanmamış olabilir. Tam kapsam için "
+            f"max_scan'i artırın (ör. max_scan={indexed + 3000})."
+        )
 
     return {
         "query": query,
@@ -438,12 +456,13 @@ async def search_articles(
             "limit": limit, "offset": offset, "year_from": year_from, "year_to": year_to,
             "author": author, "article_type": article_type, "sort": sort, "max_scan": max_scan,
         },
-        "indexed": idx.indexed_count(journal),
+        "indexed": indexed,
+        "coverage_complete": complete,
         "total": total,
         "count": len(results),
         "offset": offset,
         "results": results,
-        "note": note,
+        "note": " ".join(notes) if notes else None,
         "source_notice": SOURCE_NOTICE,
     }
 
