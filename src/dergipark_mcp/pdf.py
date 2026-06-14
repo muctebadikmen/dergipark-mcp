@@ -1,8 +1,10 @@
 """PDF indirme ve metne/Markdown'a dönüştürme.
 
 Dijital (metin katmanı olan) PDF'ler için pypdf ile sayfa-bazlı metin çıkarımı.
-Taranmış (görüntü) PDF'ler için OCR bu MVP kapsamında değildir; böyle bir PDF'te
-metin boş döner ve uyarı verilir (gelecekte OCR fallback eklenebilir).
+Taranmış (görüntü) ya da bozuk-font PDF'lerde metin güvenilmezdir; bu durumda
+DÜRÜSTÇE ``text_reliable=False`` döner. OCR YAPILMAZ: ücretsiz, anahtarsız ve
+herkes için sürtünmesiz bir OCR yolu (sistem ikilisi gerektirmeyen) bulunmadığından
+bilinçli olarak kapsam dışıdır — bkz. README.
 """
 
 from __future__ import annotations
@@ -12,6 +14,8 @@ import re
 from dataclasses import dataclass, field
 
 from pypdf import PdfReader
+
+from . import http
 
 # Türkçe + yaygın Batı Avrupa harfleri. Bazı bozuk PDF fontları (düzgün ToUnicode
 # CMap'i olmayan) gerçek harfleri egzotik Latin-Extended glyph'lerine (ů ŵ Ă ǌ Ŧ …)
@@ -24,8 +28,6 @@ EXPECTED_LETTERS = set(
 )
 # Oran bu eşiğin altındaysa metin büyük olasılıkla bozuk/yanlış kodlanmıştır.
 READABLE_RATIO_THRESHOLD = 0.80
-
-from . import http
 
 MAX_PDF_BYTES = 80 * 1024 * 1024  # 80 MB güvenlik sınırı
 

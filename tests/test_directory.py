@@ -1,7 +1,8 @@
 """Dergi dizini ayrıştırma + filtreleme — offline."""
 
-from dergipark_mcp import directory
 from conftest import read_fixture
+
+from dergipark_mcp import directory
 
 
 def _entries():
@@ -64,6 +65,7 @@ def test_embedded_directory_is_populated():
 async def test_list_journals_tool_offline():
     # list_journals aracı gömülü dizinle ÇALIŞIR (ağ gerekmez).
     from fastmcp import Client
+
     from dergipark_mcp.server import mcp
 
     async with Client(mcp) as client:

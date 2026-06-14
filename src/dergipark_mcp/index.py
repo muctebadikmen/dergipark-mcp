@@ -24,7 +24,7 @@ from .cache import cache_dir
 # Küçük Türkçe stopword listesi (çok yaygın, ayırt edici olmayan kelimeler).
 _STOPWORDS = {
     "ve", "ile", "bir", "bu", "da", "de", "için", "olarak", "the", "of", "and",
-    "in", "on", "a", "an", "to", "için", "ya", "veya", "mi", "mu",
+    "in", "on", "a", "an", "to", "ya", "veya", "mi", "mu",
 }
 
 _TR_MAP = str.maketrans({

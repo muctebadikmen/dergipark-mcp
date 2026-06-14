@@ -5,7 +5,6 @@ import pytest
 from dergipark_mcp import citations
 from dergipark_mcp.citations import CitationData
 
-
 # ---------------------------------------------------------------------------
 # Ortak fixture'lar
 # ---------------------------------------------------------------------------

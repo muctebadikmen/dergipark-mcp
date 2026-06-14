@@ -2,8 +2,9 @@
 
 import xml.etree.ElementTree as ET
 
-from dergipark_mcp import oai
 from conftest import read_fixture
+
+from dergipark_mcp import oai
 
 
 def _parse_fixture_record():

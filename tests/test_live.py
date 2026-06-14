@@ -9,8 +9,8 @@ ağ erişimi ve birkaç saniye gerektirir.
 
 import pytest
 
-from dergipark_mcp import oai, site
 from dergipark_mcp import http as dphttp
+from dergipark_mcp import oai, site
 
 pytestmark = pytest.mark.live
 

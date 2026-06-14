@@ -14,10 +14,8 @@ import html
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Iterable
 
-from . import OAI_NAMESPACE, OAI_URL
-from . import http
+from . import OAI_NAMESPACE, OAI_URL, http
 from .cache import default_cache
 
 # Önbellek TTL'leri (saniye). Metadata nadiren değişir → uzun tutulur.

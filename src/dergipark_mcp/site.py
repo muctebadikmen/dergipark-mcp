@@ -17,8 +17,7 @@ from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup
 
-from . import BASE_URL
-from . import http
+from . import BASE_URL, http
 from .cache import default_cache
 
 _PAGE_TTL = 24 * 3600

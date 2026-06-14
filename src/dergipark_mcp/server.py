@@ -112,7 +112,7 @@ async def _resolve_article_url(article: str) -> tuple[str, str | None]:
     return url, numeric
 
 
-def _enrich_article_from_page(article: oai.Article, page: "site.ArticlePage") -> None:
+def _enrich_article_from_page(article: oai.Article, page: site.ArticlePage) -> None:
     """Makale HTML'indeki citation_* meta'larıyla Article'ı zenginleştirir
     (afiliasyon, ORCID, DOI, ISSN, cilt/sayı/sayfa, anahtar kelimeler)."""
     authors_meta = site.citation_authors(page.citation_meta)

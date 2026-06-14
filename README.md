@@ -1,30 +1,60 @@
 # DergiPark MCP
 
-[DergiPark](https://dergipark.org.tr) (Türkiye'nin TÜBİTAK ULAKBİM akademik dergi platformu) için bir **Model Context Protocol (MCP)** sunucusu. Claude Desktop ve diğer MCP istemcilerinin DergiPark'taki dergileri taramasını, makale metadata'sını çekmesini ve tam metinleri (PDF) Markdown olarak okumasını sağlar.
-
-> **Tasarım ilkesi:** Yalnızca DergiPark'ın **resmî OAI-PMH** servisini ve **açık makale sayfalarını** kullanır. `robots.txt`'e uyumludur, **CAPTCHA çözmez**, ücretli bir servise bağımlı değildir. (`/search` yolu robots ile kapalı olduğundan kullanılmaz.)
+[DergiPark](https://dergipark.org.tr) (Türkiye'nin TÜBİTAK ULAKBİM akademik dergi platformu) için bir **Model Context Protocol (MCP)** sunucusu. Claude (Desktop/Code) ve diğer MCP istemcilerinin **~2.550 DergiPark dergisini** keşfetmesini, dergi içinde **Türkçe-duyarlı** arama yapmasını, zengin makale künyeleri + **8 atıf formatı** üretmesini ve tam metinleri (PDF) okumasını sağlar.
 
 ---
 
-## Ne yapar? (Araçlar)
+## ⭐ Neden bu MCP? (Kale / Moat)
+
+Mevcut DergiPark MCP'leri siteyi **kazıyarak** (scraping) + **ücretli CAPTCHA çözücü** (CapSolver) + **harici OCR API** ile çalışır. Bu yaklaşım kırılgandır, anahtar/para gerektirir ve sitenin arayüzü değişince bozulur.
+
+**Bu proje, DergiPark'ın resmî, ücretsiz, açık `OAI-PMH` servisini ve açık makale sayfalarını kullanır:**
+
+| | Bu proje | Kazıma-tabanlı rakipler |
+|---|---|---|
+| **API anahtarı** | ❌ Gerekmez | ✅ CapSolver / OCR anahtarı |
+| **Ücret** | ❌ Tamamen ücretsiz | 💸 CAPTCHA + OCR başına ödeme |
+| **CAPTCHA** | ❌ Yok (resmî API) | 🤖 Turnstile çözücü şart |
+| **robots.txt** | ✅ Uyumlu (yalnız izinli yollar) | ⚠️ /search robots-yasaklı |
+| **Dayanıklılık** | ✅ Site JS'i değişince bozulmaz | ❌ Arayüz değişince kırılır |
+
+> **Tasarım ilkesi:** Yalnızca **OAI-PMH** (`/api/public/oai/`), açık **makale sayfaları** (`/pub/.../article/...`), **PDF indirme** (`/download/...`) ve **dergi dizini** (`/pub/explore/journals`) kullanılır. `robots.txt` ile yasak olan `/search` ve `/login` yollarına **asla** dokunulmaz.
+
+---
+
+## Ne yapar?
+
+### 🔧 Araçlar (6)
 
 | Araç | Açıklama |
 |---|---|
-| `list_journals` | Dergileri listele/ara (OAI ListSets — *kısmi dizin, ~100 dergi*). |
+| `list_journals` | **Tam dizin** (~2.550 dergi) içinde ada/slug + **konuya** göre ara; sayfalı; en yaygın konuları gösterir. |
 | `list_journal_articles` | Bir derginin makalelerini listele (tarih filtreli, sayfalı). |
-| `search_articles` | Bir dergi **içinde** anahtar kelimeyle ara (başlık + özet + yazar). |
-| `get_article` | Tek makalenin tam metadata'sı + BibTeX atıfı. |
-| `get_article_fulltext` | Makalenin PDF'ini indirip Markdown'a çevirir (sayfa-bazlı). |
-| `get_article_references` | Makalenin kaynakça (referans) listesini çıkarır. |
+| `search_articles` | Bir dergi **içinde** **Türkçe-duyarlı** anahtar kelime araması (SQLite FTS5 + BM25). Yıl/yazar/tür filtresi, sıralama, sayfalama. |
+| `get_article` | Zengin künye: yazar **+ afiliasyon + ORCID**, DOI, ISSN, cilt/sayı/sayfa, anahtar kelime + **8 atıf formatı**. |
+| `get_article_fulltext` | PDF'i indirip Markdown'a çevirir; **bölüm haritası** (ÖZET/GİRİŞ/YÖNTEM/…/KAYNAKÇA), sayfa-sayfa gezinme. Bozuk/taranmış metinde **dürüstçe** `text_reliable=false`. |
+| `get_article_references` | Makalenin tam kaynakça (referans) listesi. |
 
-### Örnek kullanım (Claude'a doğal dille)
-- *"Mülkiye dergisinde 2014'te yayımlanan makaleleri listele."*
-- *"mulkiye dergisinde 'tezkere' geçen makaleleri ara ve ilkinin tam metnini ver."*
-- *"https://dergipark.org.tr/tr/pub/mulkiye/article/1000 makalesinin künyesini ve kaynakçasını çıkar."*
+### 💬 Prompt'lar (4) — hazır araştırma iş akışları
+
+`literature_review` · `summarize_article` · `compare_articles` · `research_discovery` (uzmanlık düzeyine göre). Claude Desktop'ta "/" menüsünde görünür.
+
+### 📦 Kaynaklar (Resources, 2)
+
+`dergipark://journal/{slug}` · `dergipark://article/{id}`
+
+### ✨ Öne çıkan özellikler
+
+- **Tam dergi dizini** (~2.550 dergi) pakete gömülü — anında, ağsız keşif + konu filtresi.
+- **Türkçe-duyarlı arama:** `İ/ı/ş/ğ/ü/ö/ç` katlanır → "eğitim" ≈ "Eğitim" ≈ "egitim"; ön-ek eşleşir (eğitim → eğitimde). İlk arama indeksler, sonrakiler **anında** (kalıcı önbellek).
+- **8 atıf formatı:** APA, MLA, IEEE, Chicago, Harvard, BibTeX, RIS, CSL-JSON — Türkçe karakterler korunarak.
+- **Zengin meta:** yapısal yazar (given/family), **afiliasyon, ORCID**, DOI, ISSN — `oai_dc` + `oai_mods` + makale HTML birleştirilerek.
+- **Çok-katmanlı önbellek** (bellek + opsiyonel disk) → siteye saygı + hız.
+- **Dürüstlük:** bozuk-font/taranmış PDF "gerçek metin" gibi sunulmaz; `text_reliable=false` ile işaretlenir.
 
 ---
 
-## Önemli kavram: **slug**
+## 🔑 Önemli kavram: **slug**
 
 Bir dergiye onun **slug**'ı ile erişilir. Slug, derginin DergiPark URL'sindeki `/pub/<slug>/` kısmıdır:
 
@@ -36,21 +66,19 @@ https://dergipark.org.tr/tr/pub/mulkiye/...   ->   slug = "mulkiye"
 
 ---
 
-## Kurulum
+## 🚀 Kurulum
+
+### Seçenek A — `uv` ile (şu an çalışan yol)
 
 Gereksinim: **Python ≥ 3.10** ve [**uv**](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <repo-url> dergipark-mcp
+git clone https://github.com/muctebadikmen/dergipark-mcp.git
 cd dergipark-mcp
-uv venv
-uv pip install -e .
+uv sync
 ```
 
-### Claude Desktop'a ekleme
-
-`claude_desktop_config.example.json` dosyasındaki yapılandırmayı, Claude Desktop'ın
-config dosyasına ekleyin (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+**Claude Desktop'a ekleme** — config dosyasına (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`) ekleyin (`claude_desktop_config.example.json` örneğine bakın):
 
 ```json
 {
@@ -63,73 +91,112 @@ config dosyasına ekleyin (macOS: `~/Library/Application Support/Claude/claude_d
 }
 ```
 
-`--directory` değerini bu klasörün **mutlak yolu** ile değiştirin. Claude Desktop'ı
-yeniden başlatın; araçlar bağlanmış olmalı.
+`--directory` değerini bu klasörün **mutlak yolu** ile değiştirin; Claude Desktop'ı yeniden başlatın.
 
-Hızlı manuel kontrol (stdio sunucusu açılıyor mu):
+### Seçenek B — `.mcpb` ile tek-tık (teknik olmayan kullanıcılar için)
 
-```bash
-uv run dergipark-mcp   # Ctrl-C ile kapatın; hata vermeden beklemesi yeterli
-```
+`.mcpb` paketi, Claude Desktop'a sürükle-bırak ile kurulan tek dosyadır. Bu repoda iki yol hazırdır (bkz. [`packaging/`](packaging/)):
 
----
-
-## Test
+- **`uv` tipi** (`manifest.json`): kullanıcının `uv` + Python'u olması gerekir; en kolay build.
+- **`binary` tipi** (PyInstaller): kullanıcıda **hiçbir şey gerekmez** (gerçek sıfır-kurulum). macOS/Windows'ta işletim sistemi imza ister → bu adım (Apple Developer ID / Authenticode ile **imzalama/notarize**) paketleyen kişiye/maliyetine bağlıdır. Kod ve spec hazırdır; bkz. [`packaging/README.md`](packaging/README.md).
 
 ```bash
-# Offline (ağsız) testler — parser, PDF, çözümleme
-uv run pytest -m "not live" -q
-
-# Canlı entegrasyon testleri — gerçek DergiPark trafiği üretir (nazik, yavaş)
-uv run pytest -m live -q
-
-# Hepsi
-uv run pytest -q
+# .mcpb üretmek (Node gerektirir):
+npm i -g @anthropic-ai/mcpb
+cd packaging && mcpb validate manifest.json && mcpb pack
 ```
 
 ---
 
-## Mimari
+## 🗣️ Örnek kullanım (Claude'a doğal dille)
 
-```
-İstemci (Claude) ──MCP──>  server.py (FastMCP araçları)
-                                │
-                ┌───────────────┼───────────────────┐
-                ▼               ▼                   ▼
-            oai.py          site.py               pdf.py
-        (OAI-PMH:        (makale sayfası:       (PDF indir +
-         metadata,        citation_pdf_url,      pypdf ile
-         listeleme)       referanslar,           Markdown)
-                          BibTeX)
-                                │
-                                ▼
-                         http.py  (rate-limit + 429 backoff)
-```
-
-- **OAI-PMH** (`/api/public/oai/`): metadata, dergi/makale listeleme, sayfalama (resumptionToken).
-- **Makale sayfası** (`/pub/.../article/...`): PDF linki (Google Scholar `citation_pdf_url` meta etiketi), referanslar, BibTeX.
-- **Nazik HTTP** (`http.py`): DergiPark ardışık isteklerde 429 döndürür; istemci istekleri sınırlar ve `Retry-After`/üstel backoff ile yeniden dener.
+- *"Eğitim konulu DergiPark dergilerini listele."* → `list_journals(subject=…)`
+- *"mulkiye dergisinde 'siyaset' geçen 2015 sonrası makaleleri ara, en yeniden eskiye sırala."*
+- *"Şu makalenin künyesini APA ve IEEE formatında ver: https://dergipark.org.tr/tr/pub/mulkiye/article/1000"*
+- *"29mayisegitim/1816398 makalesinin tam metnini oku ve yöntem bölümünü özetle."*
+- *"/literature_review topic=okul öncesi eğitim"* (prompt)
 
 ---
 
-## Sınırlamalar ve dürüst notlar
+## ⚙️ Çevre değişkenleri (opsiyonel)
 
-- **Genel (siteler arası) anahtar kelime araması yoktur.** DergiPark herkese açık bir arama API'si sunmaz ve `/search` robots ile kapalıdır. Bu yüzden `search_articles` bir **dergi kapsamında** çalışır (o derginin metadata'sını OAI ile çekip yerel olarak arar).
-- **`list_journals` kısmi bir dizindir** (~100 dergi). DergiPark'ın OAI ListSets servisi tam listeyi (resumptionToken ile) vermez. Bilinen bir slug ile her dergiye erişilebilir.
-- **Taranmış (görüntü) PDF'ler:** Metin katmanı olmayan PDF'lerden metin çıkmaz; bu sürümde **OCR yoktur** (gelecekte eklenebilir).
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `DERGIPARK_MIN_INTERVAL` | `1.0` | İstekler arası min saniye (nezaket). |
+| `DERGIPARK_MAX_CONCURRENCY` | `1` | Eşzamanlı istek sayısı. |
+| `DERGIPARK_ENABLE_DISK_CACHE` | kapalı | `1` → disk önbelleğini açar (süreçler arası kalıcı). |
+| `DERGIPARK_CACHE_DIR` | platforma özgü | Önbellek + arama indeksi dizini. |
 
 ---
 
-## Yasal / etik
+## 🔒 Güvenlik (prompt-injection)
+
+DergiPark'tan gelen tam metin/özet/referanslar **dış içeriktir**. Bu sunucu, tam metni `[EXTERNAL CONTENT] … [/EXTERNAL CONTENT]` ile sarar ve yanıtlara `source_notice` ekler: bu içerik **veri** olarak değerlendirilmeli, **talimat** olarak değil. İstemci modeli (Claude) bu işarete uyacak şekilde yönlendirilir.
+
+---
+
+## 🙏 Nazik kullanım (good citizen)
+
+DergiPark ardışık isteklerde HTTP 429 döndürür ve `Retry-After` göndermez. İstemci varsayılan olarak **eşzamanlılığı 1**, **istek aralığını ~1 sn** tutar, 429'da **üstel backoff** uygular ve `User-Agent`'ta kendini tanıtır. Lütfen bu ayarları gereksiz yere agresifleştirmeyin.
+
+---
+
+## ⚖️ Yasal / etik
 
 DergiPark açık erişimli bir platformdur; dergiler çeşitli **Creative Commons** lisansları kullanır (CC BY-NC, CC BY-NC-ND vb.).
 
 - **Metadata** (başlık, yazar, özet) OAI-PMH ile serbestçe toplanabilir — protokolün amacı budur.
-- **Tam metin**, son kullanıcı için anlık getirilir (tarayıcı gibi). Yeniden dağıtım yapacaksanız her makalenin **CC lisansına** uyun (NC: ticari değil, ND: türev/değişiklik yok).
-- İstemci `robots.txt`'e uyar, istekleri hız-sınırlar ve `User-Agent`'ta kendini tanıtır.
+- **Tam metin**, son kullanıcı için anlık getirilir (tarayıcı gibi). Yeniden dağıtım yapacaksanız her makalenin **CC lisansına** uyun (NC: ticari değil; ND: türev/değişiklik yok).
+- İstemci `robots.txt`'e uyar, istekleri hız-sınırlar ve kendini tanıtır.
 
 Bu yazılım "olduğu gibi" sağlanır; içeriğin kullanım sorumluluğu kullanıcıya aittir.
 
-## Lisans
+---
+
+## ⚠️ Dürüst sınırlamalar
+
+- **Siteler-arası (global) anahtar kelime araması yoktur.** DergiPark herkese açık genel arama API'si sunmaz ve `/search` robots ile kapalıdır. Bu yüzden `search_articles` bir **dergi kapsamında** çalışır. (Global arama, ücretli bir sunucu + harvest gerektirir; bu proje bilinçli olarak **sunucusuz/yerel**dir.)
+- **OCR yoktur.** Taranmış veya bozuk-font (Unicode/ToUnicode eşlemesi olmayan) PDF'lerde metin fiziksel olarak çıkarılamaz. Ücretsiz, anahtarsız ve herkes için sürtünmesiz (sistem ikilisi gerektirmeyen) bir OCR yolu olmadığından OCR kapsam dışıdır; bu tür belgeler **`text_reliable=false`** ile dürüstçe işaretlenir.
+- **Konu taksonomisi İngilizcedir** ("Law", "Education", "Sociology" …). `list_journals` filtresiz çağrıldığında `available_subjects` ile mevcut konuları görebilirsiniz.
+
+---
+
+## 🧱 Mimari
+
+```
+İstemci (Claude) ──MCP──> server.py (6 araç + 4 prompt + 2 kaynak)
+                               │
+   ┌─────────────┬─────────────┼───────────────┬──────────────┬───────────┐
+   ▼             ▼             ▼               ▼              ▼           ▼
+directory.py   oai.py        site.py         pdf.py       index.py   citations.py
+(~2550 dergi  (OAI-PMH:     (makale HTML:   (PDF→md +     (FTS5 +    (8 atıf
+ dizini +      oai_dc +      citation_*:     bölüm +      Türkçe     formatı)
+ konu)         oai_mods)     affil/orcid/    güvenilirlik  fold +
+                             doi + refs)     bayrağı)      BM25)
+                               │
+                               ▼
+                  cache.py (bellek + disk) · http.py (1 req/s, conc=1, 429 backoff)
+```
+
+---
+
+## 🧪 Geliştirme & test
+
+```bash
+uv sync
+uv run pytest -m "not live" -q     # offline (parser/pdf/cache/index/citations/prompts) — hızlı
+uv run pytest -m live -q           # canlı (gerçek DergiPark trafiği — nazik, yavaş)
+uvx ruff check src/ tests/         # lint
+```
+
+**Dergi dizinini yenileme** (yeni dergiler eklendikçe):
+
+```bash
+uv run python scripts/build_directory.py   # data/journals.json'u yeniden üretir
+```
+
+---
+
+## 📄 Lisans
 
 MIT — bkz. [LICENSE](LICENSE).

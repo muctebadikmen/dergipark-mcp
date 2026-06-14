@@ -10,8 +10,8 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
-from dergipark_mcp.server import mcp
 from dergipark_mcp import http as dphttp
+from dergipark_mcp.server import mcp
 
 pytestmark = pytest.mark.live
 

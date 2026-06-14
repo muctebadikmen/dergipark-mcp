@@ -20,8 +20,9 @@ import os
 import sqlite3
 import time
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import platformdirs
 
@@ -63,7 +64,7 @@ class Cache:
         self.default_ttl = default_ttl
         self.namespace = namespace
         self._disk_enabled = _disk_enabled_default() if disk_enabled is None else disk_enabled
-        self._mem: "OrderedDict[str, tuple[float, Any]]" = OrderedDict()
+        self._mem: OrderedDict[str, tuple[float, Any]] = OrderedDict()
         self._locks: dict[str, asyncio.Lock] = {}
         self._db: sqlite3.Connection | None = None
         self._db_failed = False

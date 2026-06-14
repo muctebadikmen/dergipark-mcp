@@ -126,7 +126,7 @@ def _data_resource():
     return files("dergipark_mcp").joinpath("data", "journals.json")
 
 
-_embedded_entries: list["JournalEntry"] | None = None  # bir kez parse edilir, bellekte tutulur
+_embedded_entries: list[JournalEntry] | None = None  # bir kez parse edilir, bellekte tutulur
 
 
 def load_embedded() -> dict:
@@ -138,7 +138,7 @@ def load_embedded() -> dict:
         return {"generated_at": None, "count": 0, "journals": []}
 
 
-def embedded_entries() -> list["JournalEntry"]:
+def embedded_entries() -> list[JournalEntry]:
     """Gömülü dizini (parse edilmiş) döndürür — ilk çağrıda yüklenir, sonra bellekten."""
     global _embedded_entries
     if _embedded_entries is None:

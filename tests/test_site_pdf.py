@@ -1,7 +1,8 @@
 """Makale sayfası ayrıştırma ve PDF metin normalizasyonu — offline."""
 
-from dergipark_mcp import site, pdf
 from conftest import read_fixture
+
+from dergipark_mcp import pdf, site
 
 
 def test_article_html_pdf_link_and_meta():
@@ -161,7 +162,7 @@ def _minimal_pdf_bytes() -> bytes:
     xref_pos = len(header) + len(body)
     xref = b"xref\n0 6\n0000000000 65535 f \n"
     for off in offsets:
-        xref += ("%010d 00000 n \n" % off).encode()
+        xref += (f"{off:010d} 00000 n \n").encode()
     trailer = (
         b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"
         + str(xref_pos).encode()

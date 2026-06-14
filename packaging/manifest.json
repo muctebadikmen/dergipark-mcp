@@ -1,0 +1,57 @@
+{
+  "manifest_version": "0.2",
+  "name": "dergipark-mcp",
+  "display_name": "DergiPark MCP",
+  "version": "0.2.0",
+  "description": "DergiPark (Türk akademik dergileri) için MCP — resmî OAI-PMH, anahtarsız, CAPTCHA'sız, robots-uyumlu.",
+  "long_description": "DergiPark'ın resmî OAI-PMH servisini ve açık makale sayfalarını kullanır. ~2.550 dergiyi keşfeder, dergi içinde Türkçe-duyarlı arama yapar, zengin künye + 8 atıf formatı + tam metin sağlar. API anahtarı, CAPTCHA çözücü veya ücretli servis gerektirmez.",
+  "author": {
+    "name": "muctebadikmen",
+    "url": "https://github.com/muctebadikmen"
+  },
+  "homepage": "https://github.com/muctebadikmen/dergipark-mcp",
+  "documentation": "https://github.com/muctebadikmen/dergipark-mcp#readme",
+  "license": "MIT",
+  "keywords": ["dergipark", "oai-pmh", "academic", "turkish", "research", "citations"],
+  "server": {
+    "type": "python",
+    "entry_point": "server/src/dergipark_mcp/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["--directory", "${__dirname}/server", "run", "dergipark-mcp"],
+      "env": {
+        "DERGIPARK_ENABLE_DISK_CACHE": "${user_config.enable_disk_cache}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "list_journals", "description": "Tam dergi dizininde (~2.550) ada/slug + konuya göre ara."},
+    {"name": "list_journal_articles", "description": "Bir derginin makalelerini listele (tarih filtreli)."},
+    {"name": "search_articles", "description": "Bir dergi içinde Türkçe-duyarlı FTS5 araması."},
+    {"name": "get_article", "description": "Zengin künye + afiliasyon/ORCID + 8 atıf formatı."},
+    {"name": "get_article_fulltext", "description": "PDF'i Markdown'a çevirir; bölüm haritası + dürüst güvenilirlik bayrağı."},
+    {"name": "get_article_references", "description": "Makalenin kaynakça listesi."}
+  ],
+  "prompts": [
+    {"name": "literature_review", "description": "Bir konuda yapılandırılmış literatür taraması.", "arguments": ["topic", "journal_slug"], "text": "'${arguments.topic}' konusunda literatür taraması yap (dergi: ${arguments.journal_slug})."},
+    {"name": "summarize_article", "description": "Tek makaleyi yapılandırılmış özetle.", "arguments": ["article"], "text": "Şu makaleyi yapılandırılmış biçimde özetle: ${arguments.article}"},
+    {"name": "compare_articles", "description": "İki makaleyi karşılaştır.", "arguments": ["article_1", "article_2"], "text": "Şu iki makaleyi karşılaştır: ${arguments.article_1} ve ${arguments.article_2}"},
+    {"name": "research_discovery", "description": "Konu keşfi: ilgili dergiler + öne çıkan makaleler.", "arguments": ["topic", "expertise_level", "year_range"], "text": "'${arguments.topic}' konusunda araştırma keşfi yap (düzey: ${arguments.expertise_level})."}
+  ],
+  "user_config": {
+    "enable_disk_cache": {
+      "type": "boolean",
+      "title": "Disk önbelleği",
+      "description": "Süreçler arası kalıcı önbellek (daha hızlı tekrar; az disk kullanır).",
+      "default": true,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

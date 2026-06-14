@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"   # haftalık (Pazartesi 04:00 UTC) canlı testler
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: Lint + offline tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: Lint (ruff)
+        run: uvx ruff check src/ tests/ scripts/ packaging/launcher.py
+
+      - name: Offline tests
+        run: uv run pytest -m "not live" -q
+
+  live:
+    name: Live tests (nightly / manual)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - run: uv sync --extra dev
+      - name: Live integration tests (polite, rate-limited)
+        run: uv run pytest -m live -q

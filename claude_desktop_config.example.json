@@ -1,13 +1,16 @@
 {
   "mcpServers": {
     "dergipark": {
-      "command": "/Users/mustafa/.local/bin/uv",
+      "command": "uv",
       "args": [
         "--directory",
-        "/Users/mustafa/Desktop/Projects/dergipark-mcp",
+        "/MUTLAK/YOL/dergipark-mcp",
         "run",
         "dergipark-mcp"
-      ]
+      ],
+      "env": {
+        "DERGIPARK_ENABLE_DISK_CACHE": "1"
+      }
     }
   }
 }
