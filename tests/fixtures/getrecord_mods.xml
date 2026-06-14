@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/zollu/bundles/ojsoai/oai2.xsl" ?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/
+         http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+    <responseDate>2026-06-14T16:33:11Z</responseDate>
+    <request verb="GetRecord" metadataPrefix="oai_mods"
+             identifier="oai:dergipark.org.tr:record/1000">https://dergipark.org.tr/api/public/oai/?verb=GetRecord&amp;metadataPrefix=oai_mods&amp;identifier=oai%3Adergipark.org.tr%3Aarticle%2F1000</request>
+    <GetRecord>
+        <record>
+            <header>
+    <identifier>oai:dergipark.org.tr:record/1000</identifier>
+    <datestamp>2026-05-13</datestamp>
+                        <setSpec>mulkiye</setSpec>
+            </header>
+            <metadata>
+                <mods xmlns="http://www.loc.gov/mods/v3"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:xml="http://www.w3.org/XML/1998/namespace"
+      xsi:schemaLocation="http://www.loc.gov/mods/v3 http://www.loc.gov/standards/mods/v3/mods-3-0.xsd"
+      version="3.0">
+
+    <typeOfResource>text</typeOfResource>
+    <genre authority="marcgt">article</genre>
+
+                            <titleInfo xml:lang="tr-TR">
+                <title><![CDATA[TBMM&#039;nin Askeri Güç Kullanması ve Kabulüne İlişkin Tezkereyi Görüşme Yöntemi Üzerine]]></title>
+            </titleInfo>
+                                <titleInfo xml:lang="en-US">
+                <title><![CDATA[TBMM&#039;nin Askeri Güç Kullanması ve Kabulüne İlişkin Tezkereyi Görüşme Yöntemi Üzerine]]></title>
+            </titleInfo>
+            
+                            <name type="personal">
+                                    <namePart type="given">Fahri</namePart>
+                                                    <namePart type="family">Bakırcı</namePart>
+                                                                    <role>
+                        <roleTerm type="text">author</roleTerm>
+                    </role>
+                            </name>
+            
+        
+    <originInfo>
+                            <dateIssued encoding="w3cdtf" keyDate="yes">2014-03-06</dateIssued>
+                            <publisher><![CDATA[Mülkiyeliler Birliği Genel Merkezi]]></publisher>
+            </originInfo>
+
+                <language>
+            <languageTerm type="code" authority="rfc3066">tr</languageTerm>
+        </language>
+    
+                                
+                                                
+        <identifier
+            type="uri">https://dergipark.org.tr/en/pub/mulkiye/article/1000</identifier>
+                <identifier type="uri">https://izlik.org/JA26ZK54BZ</identifier>
+    
+        <location>
+        <url>https://dergipark.org.tr/en/pub/mulkiye/article/1000</url>
+    </location>
+
+                <relatedItem type="host">
+            <titleInfo>
+                <title><![CDATA[Mülkiye Dergisi]]></title>
+            </titleInfo>
+                            <part>
+                                            <detail type="volume" level="1">
+                            <number>29</number>
+                        </detail>
+                                                                <detail type="issue" level="2">
+                            <number>247</number>
+                        </detail>
+                                                                <extent unit="pages">
+                                                            <start>87</start>                                                            <end>97</end>                        </extent>
+                                    </part>
+                    </relatedItem>
+    </mods>
+            </metadata>
+        </record>
+    </GetRecord>
+</OAI-PMH>

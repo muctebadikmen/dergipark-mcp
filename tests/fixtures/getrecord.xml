@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+    <responseDate>2026-06-14T01:41:19Z</responseDate>
+    <request verb="GetRecord" metadataPrefix="oai_dc"
+             identifier="oai:dergipark.org.tr:article/1000">https://dergipark.org.tr/api/public/oai/</request>
+    <GetRecord>
+        <record>
+            <header>
+                <identifier>oai:dergipark.org.tr:record/1000</identifier>
+                <datestamp>2026-05-13</datestamp>
+                <setSpec>mulkiye</setSpec>
+            </header>
+            <metadata>
+                <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/"
+                           xmlns:dc="http://purl.org/dc/elements/1.1/"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+                    <dc:title xml:lang="tr-TR"><![CDATA[TBMM'nin Askeri Güç Kullanması ve Kabulüne İlişkin Tezkereyi Görüşme Yöntemi Üzerine]]></dc:title>
+                    <dc:title xml:lang="en-US"><![CDATA[On the Method of Debating the Motion Regarding the Use of Military Force by the TBMM]]></dc:title>
+                    <dc:creator><![CDATA[Bakırcı, Fahri]]></dc:creator>
+                    <dc:subject xml:lang="tr-TR"><![CDATA[TBMM, tezkere, askeri güç]]></dc:subject>
+                    <dc:description xml:lang="tr-TR"><![CDATA[Bu çalışmada TBMM'nin asker gönderme tezkerelerini görüşme yöntemi incelenmektedir.]]></dc:description>
+                    <dc:publisher><![CDATA[Mülkiyeliler Birliği Genel Merkezi]]></dc:publisher>
+                    <dc:date>2014-03-06</dc:date>
+                    <dc:type>info:eu-repo/semantics/article</dc:type>
+                    <dc:format>application/pdf</dc:format>
+                    <dc:identifier>https://dergipark.org.tr/en/pub/mulkiye/article/1000</dc:identifier>
+                    <dc:identifier>https://izlik.org/JA26ZK54BZ</dc:identifier>
+                    <dc:source><![CDATA[Mülkiye Dergisi, Vol. 29 No. 247            ]]></dc:source>
+                    <dc:language>tur</dc:language>
+                    <dc:rights><![CDATA[Creative Commons Attribution-NonCommercial 4.0]]></dc:rights>
+                </oai_dc:dc>
+            </metadata>
+        </record>
+    </GetRecord>
+</OAI-PMH>

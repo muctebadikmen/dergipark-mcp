@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Sanal ortam
+.venv/
+venv/
+
+# Test / araç
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Yerel önbellek (disk cache) ve indeks
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.dergipark-mcp/
+
+# Paketleme çıktıları
+*.mcpb
+*.dxt
+packaging/build/
+packaging/dist/
+
+# OS / editör
+.DS_Store
+.idea/
+.vscode/
+*.swp

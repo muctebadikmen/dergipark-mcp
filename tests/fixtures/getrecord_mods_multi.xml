@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/zollu/bundles/ojsoai/oai2.xsl" ?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/
+         http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+    <responseDate>2026-06-14T16:36:18Z</responseDate>
+    <request verb="GetRecord" metadataPrefix="oai_mods"
+             identifier="oai:dergipark.org.tr:record/1816398">https://dergipark.org.tr/api/public/oai/?verb=GetRecord&amp;metadataPrefix=oai_mods&amp;identifier=oai%3Adergipark.org.tr%3Aarticle%2F1816398</request>
+    <GetRecord>
+        <record>
+            <header>
+    <identifier>oai:dergipark.org.tr:record/1816398</identifier>
+    <datestamp>2026-05-14</datestamp>
+                        <setSpec>29mayisegitim</setSpec>
+            </header>
+            <metadata>
+                <mods xmlns="http://www.loc.gov/mods/v3"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:xml="http://www.w3.org/XML/1998/namespace"
+      xsi:schemaLocation="http://www.loc.gov/mods/v3 http://www.loc.gov/standards/mods/v3/mods-3-0.xsd"
+      version="3.0">
+
+    <typeOfResource>text</typeOfResource>
+    <genre authority="marcgt">article</genre>
+
+                            <titleInfo xml:lang="en-US">
+                <title><![CDATA[Critical Thinking Skills, Problem-Solving Skills, and General Well-Being of Preschool Teacher Candidates]]></title>
+            </titleInfo>
+                                <titleInfo xml:lang="tr-TR">
+                <title><![CDATA[Okul Öncesi Öğretmen Adaylarının Eleştirel Düşünme Becerileri İle Problem Çözme Becerileri ve Genel İyi Oluşları]]></title>
+            </titleInfo>
+            
+                            <name type="personal">
+                                    <namePart type="given">Tunahan</namePart>
+                                                    <namePart type="family">Karaarslan</namePart>
+                                                                    <role>
+                        <roleTerm type="text">author</roleTerm>
+                    </role>
+                            </name>
+                                <name type="personal">
+                                    <namePart type="given">Gülçin</namePart>
+                                                    <namePart type="family">Güven</namePart>
+                                                                    <role>
+                        <roleTerm type="text">author</roleTerm>
+                    </role>
+                            </name>
+            
+        
+    <originInfo>
+                            <dateIssued encoding="w3cdtf" keyDate="yes">2026-01-30</dateIssued>
+                            <publisher><![CDATA[Istanbul 29 Mayıs University]]></publisher>
+            </originInfo>
+
+                <language>
+            <languageTerm type="code" authority="rfc3066">tr</languageTerm>
+        </language>
+    
+                            <abstract xml:lang="en-US">
+                <![CDATA[The aim of this study is to examine the relationship between preschool teacher candidates’ critical thinking skills, problem-solving skills, and general well-being levels. The research was designed as a quantitative study using the correlational survey model. The study group consisted of 262 teacher candidates enrolled in Preschool Teaching programs at universities in Istanbul during the 2024–2025 academic year. Data were collected through a personal information form, the Critical Thinking Standards Scale for Teacher Candidates, the Problem-Solving Inventory for Adults, and the General Well-Being Scale. The collected data were analyzed using descriptive statistics, Pearson correlation analysis, and multiple regression analysis with the SPSS 24.0 software. According to the findings, teacher candidates demonstrated high levels of critical thinking, problem-solving, and general well-being. Positive and significant correlations were found among the variables, and both critical thinking and problem-solving skills were identified as significant predictors of general well-being. The regression model revealed that problem-solving skills were the strongest predictor of general well-being. In conclusion, it can be stated that teacher candidates’ cognitive skills—specifically critical thinking and problem-solving—are important factors supporting their psychological well-being. The findings emphasize the importance of integrating instructional practices that foster critical thinking and problem-solving skills into teacher education programs to enhance the well-being of teacher candidates.]]>
+            </abstract>
+                                <abstract xml:lang="tr-TR">
+                <![CDATA[Bu araştırmanın amacı, okul öncesi öğretmen adaylarının eleştirel düşünme becerileri, problem çözme becerileri ve genel iyi oluş düzeyleri arasındaki ilişkiyi incelemektir. Araştırma nicel desenli olup ilişkisel tarama modeli kullanılmıştır. Çalışma grubunu, 2024–2025 eğitim-öğretim yılında İstanbul ilindeki üniversitelerin Okul Öncesi Öğretmenliği programında öğrenim gören 262 öğretmen adayı oluşturmaktadır. Veriler, kişisel bilgi formu, Öğretmen Adaylarına Yönelik Eleştirel Düşünme Standartları Ölçeği, Yetişkinler İçin Problem Çözme Ölçeği ve Genel İyi Oluş Ölçeği ile toplanmıştır. Elde edilen veriler SPSS 24.0 programı kullanılarak betimleyici istatistikler, Pearson korelasyon analizi ve çoklu regresyon analizi ile değerlendirilmiştir. Araştırma bulgularına göre, öğretmen adaylarının eleştirel düşünme, problem çözme ve genel iyi oluş düzeyleri yüksek bulunmuştur. Değişkenler arasında pozitif ve anlamlı ilişkiler saptanmış; eleştirel düşünme ve problem çözme becerilerinin genel iyi oluşun anlamlı yordayıcıları olduğu belirlenmiştir. Regresyon modeline göre, problem çözme becerisi genel iyi oluşun en güçlü yordayıcısıdır. Sonuç olarak, öğretmen adaylarının bilişsel becerilerinin (eleştirel düşünme ve problem çözme) psikolojik iyi oluşlarını destekleyen önemli faktörler olduğu söylenebilir. Bulgular, öğretmen yetiştirme programlarında eleştirel düşünme ve problem çözme odaklı öğretim uygulamalarının, öğretmen adaylarının iyi oluşlarını destekleme açısından önemli olduğunu ortaya koymaktadır.]]>
+            </abstract>
+            
+                                                                <subject>
+                        <topic><![CDATA[Early Childhood Education]]></topic>
+                    </subject>
+                                                                <subject>
+                        <topic><![CDATA[Okul Öncesi Eğitim]]></topic>
+                    </subject>
+                                                                                            <subject>
+                    <topic><![CDATA[Critical Thinking,Problem-Solving,Well-Being,Preschool Teacher Candidates,Teacher Education.]]></topic>
+                </subject>
+                                                                        <subject>
+                    <topic><![CDATA[Eleştirel Düşünme,Problem Çözme,İyi Oluş,Okul Öncesi Öğretmen Adayları,Öğretmen Eğitimi.]]></topic>
+                </subject>
+                        
+        <identifier
+            type="uri">https://dergipark.org.tr/en/pub/29mayisegitim/article/1816398</identifier>
+                <identifier type="uri">https://izlik.org/JA28WS58XL</identifier>
+    
+        <location>
+        <url>https://dergipark.org.tr/en/pub/29mayisegitim/article/1816398</url>
+    </location>
+
+                <relatedItem type="host">
+            <titleInfo>
+                <title><![CDATA[İstanbul 29 Mayıs Üniversitesi Eğitim Fakültesi Dergisi]]></title>
+            </titleInfo>
+                            <part>
+                                            <detail type="volume" level="1">
+                            <number>1</number>
+                        </detail>
+                                                                <detail type="issue" level="2">
+                            <number>1</number>
+                        </detail>
+                                                                <extent unit="pages">
+                                                            <start>1</start>                                                            <end>12</end>                        </extent>
+                                    </part>
+                    </relatedItem>
+    </mods>
+            </metadata>
+        </record>
+    </GetRecord>
+</OAI-PMH>

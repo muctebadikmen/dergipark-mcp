@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "dergipark": {
+      "command": "/Users/mustafa/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/Users/mustafa/Desktop/Projects/dergipark-mcp",
+        "run",
+        "dergipark-mcp"
+      ]
+    }
+  }
+}
