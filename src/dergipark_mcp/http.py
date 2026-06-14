@@ -12,6 +12,7 @@ Bu davranış hem teknik dayanıklılık hem de sunucuya saygılı (etik) kullan
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 
 import httpx
@@ -20,15 +21,35 @@ from . import __version__
 
 USER_AGENT = (
     f"dergipark-mcp/{__version__} "
-    "(+https://github.com/; OAI-PMH harvester; respects robots.txt)"
+    "(+https://github.com/muctebadikmen/dergipark-mcp; "
+    "OAI-PMH harvester; respects robots.txt)"
 )
 
-# Nazik kullanım parametreleri — gerekirse ortam değişkeniyle override edilebilir.
-MIN_INTERVAL = 0.5          # saniye: ardışık istek başlangıçları arası min boşluk
-MAX_CONCURRENCY = 2         # aynı anda en fazla istek
-MAX_RETRIES = 4             # 429/503 için yeniden deneme sayısı
-BACKOFF_BASE = 2.0          # saniye: üstel backoff tabanı
-DEFAULT_TIMEOUT = 60.0      # saniye
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+
+
+# Nazik kullanım parametreleri — ortam değişkeniyle override edilebilir.
+#
+# DergiPark'ın ölçülen tavanı ~5-6 istek/yuvarlanan saniye ve **Retry-After
+# göndermez** (429 = statik nginx HTML). Bu yüzden varsayılan olarak eşzamanlılığı
+# 1'e, istek aralığını ~1 sn'ye çekeriz: hem dayanıklı hem de siteye saygılı.
+MIN_INTERVAL = _env_float("DERGIPARK_MIN_INTERVAL", 1.0)   # saniye: istekler arası min boşluk
+MAX_CONCURRENCY = _env_int("DERGIPARK_MAX_CONCURRENCY", 1)  # aynı anda en fazla istek
+MAX_RETRIES = _env_int("DERGIPARK_MAX_RETRIES", 4)         # 429/503 için yeniden deneme sayısı
+BACKOFF_BASE = _env_float("DERGIPARK_BACKOFF_BASE", 2.0)   # saniye: üstel backoff tabanı
+DEFAULT_TIMEOUT = _env_float("DERGIPARK_TIMEOUT", 60.0)    # saniye
 
 _RETRY_STATUS = {429, 502, 503, 504}
 

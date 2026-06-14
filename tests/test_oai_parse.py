@@ -42,6 +42,55 @@ def test_oai_identifier_helper():
     assert oai._numeric_id_from_identifier("oai:dergipark.org.tr:record/55") == "55"
 
 
+def _parse_mods(name: str):
+    root = ET.fromstring(read_fixture(name).encode("utf-8"))
+    record = root.find(".//oai:GetRecord/oai:record", oai.NS)
+    assert record is not None
+    return oai.parse_mods_record(record)
+
+
+def test_mods_single_author():
+    a = _parse_mods("getrecord_mods.xml")
+    assert a.id == "1000"
+    assert a.journal_slug == "mulkiye"
+    assert a.journal == "Mülkiye Dergisi"
+    assert len(a.authors_detailed) == 1
+    assert a.authors_detailed[0].given == "Fahri"
+    assert a.authors_detailed[0].family == "Bakırcı"
+    assert a.authors == ["Fahri Bakırcı"]
+    assert a.volume == "29" and a.issue == "247"
+    assert a.first_page == "87" and a.last_page == "97"
+    assert a.date == "2014-03-06"
+    assert a.url == "https://dergipark.org.tr/en/pub/mulkiye/article/1000"
+    assert a.persistent_id == "https://izlik.org/JA26ZK54BZ"
+
+
+def test_mods_multi_author():
+    a = _parse_mods("getrecord_mods_multi.xml")
+    assert a.id == "1816398"
+    assert [d.family for d in a.authors_detailed] == ["Karaarslan", "Güven"]
+    assert [d.given for d in a.authors_detailed] == ["Tunahan", "Gülçin"]
+    assert a.abstract  # daha yeni kayıt → mods'ta abstract var
+    assert a.date == "2026-01-30"
+    assert a.volume == "1" and a.issue == "1"
+    assert a.first_page == "1" and a.last_page == "12"
+
+
+def test_merge_article_fills_gaps():
+    dc = oai.Article(id="1", oai_identifier="x", abstract="özet", subjects=["a"], title="Başlık")
+    mods = oai.Article(
+        id="1", oai_identifier="x", volume="3", issue="2",
+        authors=["Ad Soyad"],
+        authors_detailed=[oai.Author(name="Ad Soyad", given="Ad", family="Soyad")],
+    )
+    merged = oai.merge_article(dc, mods)
+    assert merged.abstract == "özet"       # base korunur
+    assert merged.subjects == ["a"]
+    assert merged.volume == "3" and merged.issue == "2"   # extra'dan dolar
+    assert merged.authors == ["Ad Soyad"]
+    assert merged.authors_detailed[0].family == "Soyad"
+
+
 def test_error_detection():
     xml = (
         '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">'
