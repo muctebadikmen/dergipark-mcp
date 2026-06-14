@@ -96,6 +96,21 @@ async def test_list_journal_articles_via_client():
 
 async def test_search_articles_via_client():
     # Küçük max_scan ile mulkiye (1330+ makale) → kapsam EKSİK olmalı ve DÜRÜSTÇE bildirilmeli.
+    # İZOLASYON: kalıcı (platformdirs) indeks mulkiye'yi daha önce TAM indekslemiş olabilir
+    # (o zaman coverage_complete doğru biçimde True döner). Bu testin "eksik kapsam" yolunu
+    # deterministik doğrulayabilmesi için soğuk, bellek-içi bir indeksten başlatıyoruz.
+    from dergipark_mcp import index as _index
+
+    prev_index = _index._default_index
+    _index._default_index = _index.SearchIndex(":memory:")
+    try:
+        await _run_incomplete_coverage_checks()
+    finally:
+        _index._default_index.close()
+        _index._default_index = prev_index
+
+
+async def _run_incomplete_coverage_checks():
     async with Client(mcp) as client:
         res = await client.call_tool(
             "search_articles",

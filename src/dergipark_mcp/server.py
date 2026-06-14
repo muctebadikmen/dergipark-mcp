@@ -38,8 +38,10 @@ mcp = FastMCP(
         "/pub/<slug>/ kısmıdır (örn. .../pub/mulkiye/ -> slug 'mulkiye'). "
         "Anahtar kelime araması bir dergi kapsamında çalışır (DergiPark genel arama "
         "API'si sunmaz). Önce list_journals ile dergiyi bulabilir, sonra o derginin "
-        "içinde search_articles ile arayabilir, get_article ile metadata ve "
-        "get_article_fulltext ile tam metni alabilirsiniz."
+        "içinde search_articles ile arayabilir, get_article ile künye + hazır atıf "
+        "formatları (APA/MLA/IEEE/BibTeX…) ve get_article_fulltext ile tam metni "
+        "alabilirsiniz. Bir makalenin künyesi/atıfı istendiğinde get_article kullanın "
+        "(get_article_references yalnızca kaynakçayı verir)."
     ),
     mask_error_details=True,
 )
@@ -475,7 +477,11 @@ async def get_article(
     include_bibtex: bool = False,
     ctx: Context | None = None,
 ) -> dict:
-    """Tek bir makalenin ZENGİN metadata'sını getir.
+    """Tek bir makalenin ZENGİN künyesi (metadata) + hazır ATIF/KÜNYE formatları.
+
+    Künye gösterme veya APA/MLA/IEEE/Chicago/Harvard/BibTeX/RIS/CSL-JSON atıfı
+    istendiğinde BU aracı kullanın (include_citations=True ile 8 format birden döner).
+    Web'den künye toplamaya gerek yoktur — tüm alanlar DergiPark'tan birleştirilir.
 
     Kaynaklar birleştirilir: OAI oai_dc (özet, konu, kalıcı kimlik) + oai_mods
     (yapısal yazar given/family + cilt/sayı/sayfa) + makale HTML sayfası
@@ -598,7 +604,10 @@ async def get_article_fulltext(
 
 @mcp.tool(annotations=READONLY)
 async def get_article_references(article: str) -> dict:
-    """Bir makalenin kaynakça (referans) listesini çıkar.
+    """Bir makalenin KAYNAKÇASINI (bibliyografya) çıkar — makalenin ATIF YAPTIĞI eserler.
+
+    (Makalenin KENDİ künyesini/atıfını — APA, MLA, IEEE, BibTeX… — istiyorsanız bunu
+    DEĞİL, get_article aracını kullanın; o, 8 atıf formatını hazır döndürür.)
 
     Önce makale sayfasındaki citation_reference meta etiketleri / #sec-references
     bölümü kullanılır; yoksa BibTeX atıfı yedek olarak döndürülür.

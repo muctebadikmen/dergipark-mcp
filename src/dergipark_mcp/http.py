@@ -3,8 +3,8 @@
 DergiPark art arda gelen isteklerde HTTP 429 döndürür. Bu modül:
   * istekler arasında en az ``MIN_INTERVAL`` saniye boşluk bırakır,
   * eşzamanlılığı ``MAX_CONCURRENCY`` ile sınırlar,
-  * 429/503 durumunda ``Retry-After`` başlığına ve üstel geri çekilmeye (backoff)
-    saygı göstererek yeniden dener.
+  * 429 ve geçici 5xx (500/502/503/504) durumunda ``Retry-After`` başlığına ve
+    üstel geri çekilmeye (backoff) saygı göstererek yeniden dener.
 
 Bu davranış hem teknik dayanıklılık hem de sunucuya saygılı (etik) kullanım içindir.
 """
@@ -51,7 +51,9 @@ MAX_RETRIES = _env_int("DERGIPARK_MAX_RETRIES", 4)         # 429/503 için yenid
 BACKOFF_BASE = _env_float("DERGIPARK_BACKOFF_BASE", 2.0)   # saniye: üstel backoff tabanı
 DEFAULT_TIMEOUT = _env_float("DERGIPARK_TIMEOUT", 60.0)    # saniye
 
-_RETRY_STATUS = {429, 502, 503, 504}
+# DergiPark'ın OAI ucu ara sıra geçici 500 döndürür (gözlemlendi); GET'ler salt-okunur
+# ve idempotent olduğundan 5xx'i yeniden denemek güvenli ve dayanıklılık için gerekli.
+_RETRY_STATUS = {429, 500, 502, 503, 504}
 
 _client: httpx.AsyncClient | None = None
 _semaphore: asyncio.Semaphore | None = None
@@ -97,7 +99,7 @@ def _retry_after_seconds(resp: httpx.Response, attempt: int) -> float:
 
 
 async def get(url: str, params: dict | None = None) -> httpx.Response:
-    """Nazik GET: throttle + eşzamanlılık sınırı + 429/503 retry.
+    """Nazik GET: throttle + eşzamanlılık sınırı + 429/5xx retry.
 
     Başarılı (2xx) yanıtı döndürür; kalıcı hata durumunda
     ``httpx.HTTPStatusError`` yükseltir.
