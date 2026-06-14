@@ -19,7 +19,10 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import citations, directory, oai, pdf, site
+from . import citations, directory, index, oai, pdf, site
+
+# Bir dergi yeniden harvest edilmeden önce indeksin "taze" sayıldığı süre.
+HARVEST_TTL = 6 * 3600
 
 # get_article gibi araçların döndürdüğü metadata DergiPark'tan gelir (dış içerik).
 SOURCE_NOTICE = (
@@ -284,72 +287,106 @@ async def search_articles(
     query: str,
     journal: str,
     limit: int = 15,
-    max_scan: int = 300,
+    offset: int = 0,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    author: str | None = None,
+    article_type: str | None = None,
+    sort: str = "relevance",
+    include_abstract: bool = True,
+    max_scan: int = 500,
     ctx: Context | None = None,
 ) -> dict:
-    """Bir dergi İÇİNDE anahtar kelimeyle makale ara.
+    """Bir dergi İÇİNDE Türkçe-duyarlı anahtar kelime araması.
 
-    DergiPark genel (siteler arası) bir arama API'si sunmaz ve /search yolu
-    robots.txt ile kapalıdır. Bu araç, belirtilen derginin metadata'sını OAI ile
-    çekip yerel olarak (başlık + özet + yazar üzerinde) arar. Bu yüzden bir
-    'journal' slug'ı zorunludur.
+    DergiPark genel (siteler arası) bir arama API'si sunmaz ve /search robots ile
+    kapalıdır. Bu araç, derginin OAI metadata'sını yerel bir SQLite FTS5 indeksine
+    harvest eder; Türkçe-duyarlı (İ/ı/ş/ğ/ü/ö/ç katlanır), BM25 ağırlıklı
+    (başlık 5× / anahtar kelime 3× / yazar 2× / özet 1×) + recency arar. İlk arama
+    indeksler (birkaç saniye); sonrakiler ANINDA (ağsız). 'journal' slug'ı zorunludur.
 
     Args:
-        query: Aranacak kelimeler (boşlukla ayrılır; hepsi/çoğu eşleşenler öne gelir).
+        query: Aranacak kelimeler. "eğitim" ≈ "Eğitim" ≈ "egitim"; ön-ek eşleşir
+            (eğitim → eğitimde).
         journal: Dergi slug'ı (örn. "mulkiye").
-        limit: Döndürülecek en fazla sonuç.
-        max_scan: Taranacak en fazla makale (büyük dergilerde hız/derinlik dengesi).
+        limit: Bu sayfadaki en fazla sonuç.
+        offset: Sayfalama kaydırması.
+        year_from: Bu yıldan itibaren (dahil) — yayın tarihine (dc:date) göre.
+        year_to: Bu yıla kadar (dahil).
+        author: Yazar adında geçen metin (Türkçe-duyarsız).
+        article_type: Makale türü filtresi (örn. "Research Article").
+        sort: "relevance" (varsayılan), "newest" veya "oldest".
+        include_abstract: False ise özetler kısaltılmadan tamamen çıkarılır (token).
+        max_scan: İlk indekslemede taranacak en fazla makale (hız/derinlik dengesi).
     """
     journal = journal.strip().strip("/")
-    terms = [t for t in re.split(r"\s+", query.casefold()) if t]
-    if not terms:
-        raise ToolError("Boş sorgu — aranacak en az bir kelime verin.")
+    if not index._query_terms(query):
+        raise ToolError(
+            "Boş veya yalnızca durak-kelime içeren sorgu — ayırt edici en az bir kelime verin."
+        )
+    if sort not in ("relevance", "newest", "oldest"):
+        raise ToolError("sort yalnızca 'relevance', 'newest' veya 'oldest' olabilir.")
 
-    if ctx is not None:
-        await ctx.info(f"'{journal}' dergisi taranıyor (en fazla {max_scan} makale)…")
-    articles = await oai.list_records(journal, max_records=max_scan)
-    if not articles:
-        return {
-            "query": query,
-            "journal_slug": journal,
-            "scanned": 0,
-            "matched": 0,
-            "results": [],
-            "note": "Dergi taranamadı — slug'ı doğrulayın.",
+    idx = index.get_default_index()
+    if not idx.harvested_recently(journal, HARVEST_TTL):
+        if ctx is not None:
+            await ctx.info(f"'{journal}' ilk kez indeksleniyor (~{max_scan} makale taranıyor)…")
+        articles = await oai.list_records(journal, max_records=max_scan)
+        if not articles and idx.indexed_count(journal) == 0:
+            return {
+                "query": query,
+                "journal_slug": journal,
+                "total": 0,
+                "count": 0,
+                "results": [],
+                "note": "Dergi indekslenemedi — slug'ı doğrulayın (dergipark.org.tr/.../pub/<slug>/).",
+            }
+        idx.index_articles(journal, articles)
+        idx.mark_harvested(journal, len(articles))
+
+    total, rows = idx.search(
+        journal, query,
+        year_from=year_from, year_to=year_to,
+        article_type=article_type, author=author,
+        sort=sort, limit=limit, offset=offset,
+    )
+
+    results = []
+    for r in rows:
+        item = {
+            "id": r["art_id"],
+            "title": r["title"] or r["title_en"],
+            "authors": r["authors"].split("; ") if r["authors"] else [],
+            "date": r["date"],
+            "url": r["url"],
         }
+        if r["article_type"]:
+            item["article_type"] = r["article_type"]
+        if include_abstract and r["abstract"]:
+            ab = r["abstract"]
+            item["abstract"] = (ab[:300] + "…") if len(ab) > 300 else ab
+        results.append(item)
 
-    scored: list[tuple[int, oai.Article]] = []
-    for a in articles:
-        hay = " ".join(
-            filter(None, [a.title, a.title_en, a.abstract, " ".join(a.authors), " ".join(a.subjects)])
-        ).casefold()
-        hits = sum(1 for t in terms if t in hay)
-        if hits:
-            scored.append((hits, a))
+    note = None
+    if total == 0:
+        note = "Eşleşme yok. Daha az/farklı kelime deneyin; max_scan'i artırın ya da filtreleri gevşetin."
+    elif total > offset + len(results):
+        note = f"{total} eşleşmeden {offset + 1}–{offset + len(results)} gösteriliyor. offset'i artırın."
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = [a for _, a in scored[:limit]]
     return {
         "query": query,
         "journal_slug": journal,
-        "query_used_parameters": {"limit": limit, "max_scan": max_scan},
-        "scanned": len(articles),
-        "matched": len(scored),
-        "results": [
-            {
-                "id": a.id,
-                "title": a.title or a.title_en,
-                "authors": a.authors,
-                "date": a.date,
-                "abstract": (a.abstract[:300] + "…") if a.abstract and len(a.abstract) > 300 else a.abstract,
-                "url": a.url,
-            }
-            for a in top
-        ],
-        "note": (
-            None if scored else
-            "Bu dergide eşleşme yok. Farklı/daha az kelime deneyin ya da max_scan'i artırın."
-        ),
+        "query_used_parameters": {
+            "limit": limit, "offset": offset, "year_from": year_from, "year_to": year_to,
+            "author": author, "article_type": article_type, "sort": sort, "max_scan": max_scan,
+        },
+        "indexed": idx.indexed_count(journal),
+        "total": total,
+        "count": len(results),
+        "offset": offset,
+        "results": results,
+        "note": note,
+        "source_notice": SOURCE_NOTICE,
     }
 
 

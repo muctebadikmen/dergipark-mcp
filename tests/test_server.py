@@ -88,11 +88,17 @@ async def test_search_articles_via_client():
     async with Client(mcp) as client:
         res = await client.call_tool(
             "search_articles",
-            {"query": "siyaset", "journal": "mulkiye", "limit": 5, "max_scan": 60},
+            {"query": "siyaset", "journal": "mulkiye", "limit": 5, "max_scan": 120},
         )
     data = res.data
-    assert data["scanned"] > 0
-    assert "results" in data
+    assert data["indexed"] > 0
+    assert "results" in data and "total" in data
+    # ikinci arama indeksten anında (harvested_recently) çalışmalı
+    async with Client(mcp) as client:
+        res2 = await client.call_tool(
+            "search_articles", {"query": "siyaset", "journal": "mulkiye", "sort": "newest"}
+        )
+    assert "results" in res2.data
 
 
 async def test_fulltext_via_client():
