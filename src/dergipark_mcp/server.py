@@ -368,13 +368,18 @@ async def search_articles(
     max_scan: int = _DEFAULT_MAX_SCAN,
     ctx: Context | None = None,
 ) -> dict:
-    """Bir dergi İÇİNDE Türkçe-duyarlı anahtar kelime araması.
+    """TEK bir dergi İÇİNDE Türkçe-duyarlı anahtar kelime araması ('journal' zorunlu).
+
+    ⚠️ Bir KONUYU birden çok / FARKLI dergide (dergiler-arası) aramak istiyorsanız bu
+    DEĞİL, **search_all_journals** aracını kullanın — o, indekslenmiş tüm dergilerin
+    havuzunda tek seferde arar (ör. "hukuk tarihiyle ilgili farklı dergilerden makaleler").
+    Bu araç YALNIZCA 'journal' ile verilen tek dergide arar.
 
     DergiPark genel (siteler arası) bir arama API'si sunmaz ve /search robots ile
     kapalıdır. Bu araç, derginin OAI metadata'sını yerel bir SQLite FTS5 indeksine
     harvest eder; Türkçe-duyarlı (İ/ı/ş/ğ/ü/ö/ç katlanır), BM25 ağırlıklı
     (başlık 5× / anahtar kelime 3× / yazar 2× / özet 1×) + recency arar. İlk arama
-    indeksler (birkaç saniye); sonrakiler ANINDA (ağsız). 'journal' slug'ı zorunludur.
+    indeksler (birkaç saniye); sonrakiler ANINDA (ağsız).
 
     Args:
         query: Aranacak kelimeler. "eğitim" ≈ "Eğitim" ≈ "egitim"; ön-ek eşleşir
@@ -494,11 +499,14 @@ async def search_all_journals(
     include_abstract: bool = True,
     ctx: Context | None = None,
 ) -> dict:
-    """ÖNCEDEN İNDEKSLENMİŞ dergilerin TAMAMINDA (havuz) tek seferde arama.
+    """Dergiler-arası (cross-journal) arama — birden çok / FARKLI dergide tek seferde.
 
-    Bir konuyu (ör. "hukuk tarihi") TEK BİR dergiyle sınırlamadan, indekslenmiş
-    tüm dergilerde aramak için bunu kullanın. DergiPark siteler-arası bir arama
-    API'si sunmadığından, bu araç yalnızca HALİHAZIRDA indeksli dergilerde arar:
+    Bir KONUYU (ör. "hukuk tarihi") tek bir dergiyle SINIRLAMADAN, birçok farklı
+    dergiden sonuç almak için BU aracı kullanın (tek dergi içi arama için
+    search_articles). İndekslenmiş tüm dergilerin havuzunda arar; "şu konuda farklı
+    dergilerden makaleler", "tüm hukuk dergilerinde ara" gibi istekler buraya gelir.
+    DergiPark siteler-arası bir arama API'si sunmadığından, bu araç yalnızca
+    HALİHAZIRDA indeksli dergilerde arar:
     (1) sunucuyla gelen bake'lenmiş indeks + (2) bu oturumda search_articles ile
     taranmış dergiler. 2548 derginin tamamını on-demand TARAMAZ (imkânsız) — bu
     yüzden kapsam (hangi/kaç dergi) yanıtta dürüstçe bildirilir.
