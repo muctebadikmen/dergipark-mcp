@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "dergipark-mcp",
   "display_name": "DergiPark MCP",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "DergiPark (Türk akademik dergileri) için MCP — resmî OAI-PMH, anahtarsız, CAPTCHA'sız, robots-uyumlu.",
   "long_description": "DergiPark'ın resmî OAI-PMH servisini ve açık makale sayfalarını kullanır. ~2.550 dergiyi keşfeder, dergi içinde Türkçe-duyarlı arama yapar, zengin künye + 8 atıf formatı + tam metin sağlar. API anahtarı, CAPTCHA çözücü veya ücretli servis gerektirmez.",
   "author": {

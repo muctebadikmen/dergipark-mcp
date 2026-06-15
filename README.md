@@ -71,45 +71,73 @@ https://dergipark.org.tr/tr/pub/mulkiye/...   ->   slug = "mulkiye"
 
 ---
 
-## 🚀 Kurulum
+## 🚀 Kurulum (adım adım — yeni başlayanlar için)
 
-### Seçenek A — `uv` ile (şu an çalışan yol)
+> ℹ️ Bu MCP, bilgisayarındaki **Claude Desktop** uygulamasında çalışır (Mac/Windows). Tarayıcıdaki claude.ai için değildir.
 
-Gereksinim: **Python ≥ 3.10** ve [**uv**](https://docs.astral.sh/uv/).
+### ✅ En kolay yol: tek-satır `uvx` (önerilen)
 
-```bash
-git clone https://github.com/muctebadikmen/dergipark-mcp.git
-cd dergipark-mcp
-uv sync
-```
+İndirme/klonlama yok. `uv`'yi kur, bir blok yapıştır, bitti.
 
-**Claude Desktop'a ekleme** — config dosyasına (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`) ekleyin (`claude_desktop_config.example.json` örneğine bakın):
+**1) `uv`'yi kur** — tek komut. (Python'u da kendisi yönetir; ayrıca Python kurmana gerek yok.)
+
+- **macOS / Linux** (Terminal):
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Windows** (PowerShell):
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  Kurulum bitince terminali/PowerShell'i kapatıp yeniden aç.
+
+**2) Claude Desktop ayar dosyasını aç:** `Claude Desktop` → **Settings** → **Developer** → **Edit Config**. (Bu, `claude_desktop_config.json` dosyasını açar.)
+
+**3) Aşağıdaki bloğu yapıştır.** Dosya boşsa tamamını yapıştır; içinde zaten başka sunucular varsa yalnızca `"dergipark": { … }` kısmını `"mcpServers"` içine ekle:
 
 ```json
 {
   "mcpServers": {
     "dergipark": {
-      "command": "uv",
-      "args": ["--directory", "/MUTLAK/YOL/dergipark-mcp", "run", "dergipark-mcp"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/muctebadikmen/dergipark-mcp", "dergipark-mcp"]
     }
   }
 }
 ```
 
-`--directory` değerini bu klasörün **mutlak yolu** ile değiştirin; Claude Desktop'ı yeniden başlatın.
+**4) Kaydet ve Claude Desktop'ı TAMAMEN kapat-aç.** (Pencereyi kapatmak yetmez — Mac'te **Cmd+Q**.)
 
-### Seçenek B — `.mcpb` ile tek-tık (teknik olmayan kullanıcılar için)
+**5) Test et.** Claude'a şunu yaz: *"DergiPark'ta eğitim konulu dergileri listele."*
 
-`.mcpb` paketi, Claude Desktop'a sürükle-bırak ile kurulan tek dosyadır. Bu repoda iki yol hazırdır (bkz. [`packaging/`](packaging/)):
+İlk açılışta `uvx` paketi indirir/derler (birkaç saniye, internet gerekir); sonraki açılışlar anında.
 
-- **`uv` tipi** (`manifest.json`): kullanıcının `uv` + Python'u olması gerekir; en kolay build.
-- **`binary` tipi** (PyInstaller): kullanıcıda **hiçbir şey gerekmez** (gerçek sıfır-kurulum). macOS/Windows'ta işletim sistemi imza ister → bu adım (Apple Developer ID / Authenticode ile **imzalama/notarize**) paketleyen kişiye/maliyetine bağlıdır. Kod ve spec hazırdır; bkz. [`packaging/README.md`](packaging/README.md).
+<details>
+<summary>🛠️ Sorun mu çıktı? (tıkla)</summary>
+
+- **"uvx bulunamadı / command not found":** Claude Desktop, terminal PATH'ini görmeyebilir. Tam yolu bulup `"command": "uvx"` yerine yaz:
+  - Mac/Linux: `which uvx` → ör. `"/Users/KULLANICI/.local/bin/uvx"`
+  - Windows: `where uvx`
+- **Güncelleme:** Yeni sürüm çıkınca en güncelini almak için bir kez şunu çalıştır:
+  `uvx --refresh --from git+https://github.com/muctebadikmen/dergipark-mcp dergipark-mcp`
+- Araçların geldiğini görmek için sohbet kutusunun altındaki araç/eklenti simgesine bak.
+</details>
+
+### 📦 Alternatif: `.mcpb` dosyası (sürükle-bırak)
+
+1. [**Releases**](https://github.com/muctebadikmen/dergipark-mcp/releases/latest) sayfasından en son **`dergipark-mcp-*.mcpb`** dosyasını indir.
+2. Claude Desktop → **Settings → Extensions/Connectors** → indirdiğin `.mcpb`'yi pencereye sürükle.
+3. (Bu yöntem de `uv` + Python ister.)
+
+### 🧑‍💻 Claude Code (CLI) kullanıyorsan
 
 ```bash
-# .mcpb üretmek (Node gerektirir):
-npm i -g @anthropic-ai/mcpb
-cd packaging && mcpb validate manifest.json && mcpb pack
+claude mcp add dergipark -- uvx --from git+https://github.com/muctebadikmen/dergipark-mcp dergipark-mcp
 ```
+
+### 👩‍💻 Geliştirici (kaynaktan)
+
+Katkı/geliştirme için repoyu klonlayın; ayrıntılar aşağıdaki **Geliştirme & test** bölümünde.
 
 ---
 
@@ -170,7 +198,7 @@ Bu yazılım "olduğu gibi" sağlanır; içeriğin kullanım sorumluluğu kullan
 ## 🧱 Mimari
 
 ```
-İstemci (Claude) ──MCP──> server.py (6 araç + 4 prompt + 2 kaynak)
+İstemci (Claude) ──MCP──> server.py (7 araç + 4 prompt + 2 kaynak)
                                │
    ┌─────────────┬─────────────┼───────────────┬──────────────┬───────────┐
    ▼             ▼             ▼               ▼              ▼           ▼

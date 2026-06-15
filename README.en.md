@@ -71,45 +71,72 @@ You can find a slug with `list_journals`, or use a slug you already know directl
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation (step by step — for beginners)
 
-### Option A — with `uv` (the path that currently works)
+> ℹ️ This MCP runs inside the **Claude Desktop** app on your computer (Mac/Windows). It is not for browser claude.ai.
 
-Requirements: **Python ≥ 3.10** and [**uv**](https://docs.astral.sh/uv/).
+### ✅ Easiest: one-line `uvx` (recommended)
 
-```bash
-git clone https://github.com/muctebadikmen/dergipark-mcp.git
-cd dergipark-mcp
-uv sync
-```
+No download or clone. Install `uv`, paste one block, done.
 
-**Adding to Claude Desktop** — add this to the config file (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`) (see the `claude_desktop_config.example.json` example):
+**1) Install `uv`** — one command. (It also manages Python for you, so no separate Python install.)
+
+- **macOS / Linux** (Terminal):
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Windows** (PowerShell):
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  Close and reopen the terminal afterwards.
+
+**2) Open the Claude Desktop config:** `Claude Desktop` → **Settings** → **Developer** → **Edit Config** (opens `claude_desktop_config.json`).
+
+**3) Paste this block.** If the file is empty, paste it all; if you already have other servers, add just the `"dergipark": { … }` part inside `"mcpServers"`:
 
 ```json
 {
   "mcpServers": {
     "dergipark": {
-      "command": "uv",
-      "args": ["--directory", "/ABSOLUTE/PATH/dergipark-mcp", "run", "dergipark-mcp"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/muctebadikmen/dergipark-mcp", "dergipark-mcp"]
     }
   }
 }
 ```
 
-Replace the `--directory` value with the **absolute path** of this folder; restart Claude Desktop.
+**4) Save and FULLY quit + reopen Claude Desktop** (closing the window isn't enough — **Cmd+Q** on Mac).
 
-### Option B — one-click with `.mcpb` (for non-technical users)
+**5) Test.** Ask Claude: *"List DergiPark journals about education."*
 
-An `.mcpb` package is a single file you install into Claude Desktop via drag-and-drop. Two routes are ready in this repo (see [`packaging/`](packaging/)):
+On first launch `uvx` downloads/builds the package (a few seconds, needs internet); later launches are instant.
 
-- **`uv` type** (`manifest.json`): the user needs `uv` + Python; the easiest build.
-- **`binary` type** (PyInstaller): the user needs **nothing** (truly zero-install). On macOS/Windows the operating system will ask for a signature → this step (**signing/notarization** with an Apple Developer ID / Authenticode) depends on the packager/their cost. The code and spec are ready; see [`packaging/README.md`](packaging/README.md).
+<details>
+<summary>🛠️ Troubleshooting (click)</summary>
+
+- **"uvx not found / command not found":** Claude Desktop may not see your terminal PATH. Find the full path and use it instead of `"command": "uvx"`:
+  - Mac/Linux: `which uvx` → e.g. `"/Users/USERNAME/.local/bin/uvx"`
+  - Windows: `where uvx`
+- **Update:** to get the latest after a new release, run once:
+  `uvx --refresh --from git+https://github.com/muctebadikmen/dergipark-mcp dergipark-mcp`
+</details>
+
+### 📦 Alternative: `.mcpb` file (drag-and-drop)
+
+1. Download the latest **`dergipark-mcp-*.mcpb`** from [**Releases**](https://github.com/muctebadikmen/dergipark-mcp/releases/latest).
+2. Claude Desktop → **Settings → Extensions/Connectors** → drag the `.mcpb` in.
+3. (This route also needs `uv` + Python.)
+
+### 🧑‍💻 Claude Code (CLI)
 
 ```bash
-# Build the .mcpb (requires Node):
-npm i -g @anthropic-ai/mcpb
-cd packaging && mcpb validate manifest.json && mcpb pack
+claude mcp add dergipark -- uvx --from git+https://github.com/muctebadikmen/dergipark-mcp dergipark-mcp
 ```
+
+### 👩‍💻 Developer (from source)
+
+To contribute, clone the repo; see the **Development & testing** section below.
 
 ---
 
@@ -170,7 +197,7 @@ This software is provided "as is"; responsibility for the use of the content res
 ## 🧱 Architecture
 
 ```
-Client (Claude) ──MCP──> server.py (6 tools + 4 prompts + 2 resources)
+Client (Claude) ──MCP──> server.py (7 tools + 4 prompts + 2 resources)
                                │
    ┌─────────────┬─────────────┼───────────────┬──────────────┬───────────┐
    ▼             ▼             ▼               ▼              ▼           ▼
