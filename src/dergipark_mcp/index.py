@@ -180,8 +180,8 @@ class SearchIndex:
         match = " ".join(f"{t}*" for t in terms)
 
         sql = (
-            "SELECT a.art_id,a.title,a.title_en,a.authors,a.abstract,a.date,a.url,"
-            "a.article_type, bm25(articles_fts,5.0,3.0,2.0,1.0) AS score "
+            "SELECT a.art_id,a.journal_slug,a.title,a.title_en,a.authors,a.abstract,a.date,a.url,"
+            "a.article_type,a.keywords, bm25(articles_fts,5.0,3.0,2.0,1.0) AS score "
             "FROM articles_fts JOIN articles a ON a.rowid=articles_fts.rowid "
             "WHERE articles_fts MATCH ? AND a.journal_slug=?"
         )
@@ -207,14 +207,30 @@ class SearchIndex:
             atf = tr_fold(article_type)
             rows = [r for r in rows if atf in tr_fold(r["article_type"] or "")]
 
-        qfold = tr_fold(query)
+        # Sıralama sinyalleri. Eşleşme kümesi (AND-of-prefix) DEĞİŞMEZ; yalnızca
+        # sıralama iyileşir. ``phrase`` = stopword'süz katlanmış terimlerin ardışık
+        # ifadesi (örn. "hukuk tarihi"); qfold yerine bunu kullanırız ki araya giren
+        # durak-kelimeler ("hukuk ve tarihi") tam-ifade eşleşmesini bozmasın.
+        phrase = " ".join(terms)
+        multi = len(terms) >= 2
 
         def adjusted(r: dict) -> float:
             score = r["score"]  # bm25: küçük (negatif) = daha iyi
             title_f = tr_fold((r["title"] or "") + " " + (r["title_en"] or ""))
             bonus = 0.0
-            if qfold and qfold in title_f:
-                bonus -= 2.0  # tam ifade başlıkta geçiyor
+            # Tam-ifade (phrase) bonusu — en güçlü sinyal başlıkta, sonra anahtar
+            # kelime, sonra özet. Tek terimde eski davranış korunur (-2.0 başlık).
+            if phrase and phrase in title_f:
+                bonus -= 4.0 if multi else 2.0
+            elif multi and phrase in tr_fold(r["keywords"] or ""):
+                bonus -= 2.5
+            elif multi and phrase in tr_fold(r["abstract"] or ""):
+                bonus -= 1.5
+            # Başlıkta kaç AYRI sorgu terimi geçiyor (konusallık). Tek bir ortak
+            # terimle gelen gürültüyü (ör. "Karar Tarihi"de yalnız "tarihi") gerçek
+            # çok-terimli başlıkların altına iter.
+            if multi:
+                bonus -= 0.7 * sum(1 for t in terms if t in title_f)
             y = r["date"][:4] if r["date"] and r["date"][:4].isdigit() else None
             if y:
                 bonus -= min(max(int(y) - 2000, 0), 30) * 0.03  # hafif recency
@@ -231,6 +247,7 @@ class SearchIndex:
         page = rows[offset:offset + limit]
         for r in page:
             r.pop("score", None)
+            r.pop("keywords", None)  # yalnız sıralama içindi; sonuç şeklini kirletmesin
         return (total, page)
 
     def close(self) -> None:

@@ -143,6 +143,27 @@ def test_empty_query_returns_nothing(idx):
     assert idx.search("test", "ve ile") == (0, [])
 
 
+def test_phrase_in_title_outranks_scattered_terms():
+    # "hukuk tarihi": p = ifade başlıkta; n = terimler dağınık ("tarihi" başlıkta
+    # "Karar Tarihi" gürültüsü + "hukuk" özette). İkisi de AND eşleşir ama p,
+    # daha YENİ olan n'e rağmen tam-ifade bonusuyla en üstte gelmeli.
+    ix = SearchIndex(":memory:")
+    ix.index_articles("t", [
+        FakeArticle("p", title="Türk Hukuk Tarihi Üzerine", date="2010"),
+        FakeArticle("n", title="Karar Tarihi: 2024/15", abstract="… hukuk konuları …", date="2024"),
+    ])
+    total, rows = ix.search("t", "hukuk tarihi")
+    assert total == 2  # her ikisi de "hukuk" + "tarihi" içerir (AND korunur)
+    assert rows[0]["art_id"] == "p"  # tam ifade başlıkta → recency'e rağmen en üstte
+    ix.close()
+
+
+def test_search_returns_journal_slug(idx):
+    # Sonuç satırları artık hangi dergiden geldiğini taşır (dergiler-arası arama için).
+    _, rows = idx.search("test", "eğitim")
+    assert rows and all(r["journal_slug"] == "test" for r in rows)
+
+
 def test_coverage_complete_flag(idx):
     # mark_harvested complete bayrağını doğru saklamalı
     idx.mark_harvested("test", 4, complete=True)
