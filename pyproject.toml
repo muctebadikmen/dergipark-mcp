@@ -1,6 +1,6 @@
 [project]
 name = "dergipark-mcp"
-version = "0.3.4"
+version = "0.3.5"
 description = "DergiPark (Turkish academic journals) için Model Context Protocol (MCP) sunucusu — OAI-PMH tabanlı, robots-uyumlu, CAPTCHA'sız."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,7 @@ dev = [
 
 [project.scripts]
 dergipark-mcp = "dergipark_mcp.server:main"
+dergipark-mcp-serve = "dergipark_mcp.server:serve_http"
 
 [build-system]
 requires = ["hatchling"]

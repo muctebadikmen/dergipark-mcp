@@ -701,5 +701,16 @@ def main() -> None:
     mcp.run()
 
 
+def serve_http() -> None:
+    """HTTP (streamable) transport üzerinden çalışır — uzak/hosted dağıtım için
+    (ör. Hugging Face Spaces, herhangi bir Docker host). 0.0.0.0'a bağlanır; port
+    ``PORT`` env'inden okunur (HF varsayılanı 7860). MCP endpoint'i: ``/mcp``.
+
+    Yerel/Claude Desktop için bu DEĞİL, ``main`` (stdio) kullanılır.
+    """
+    port = int(os.environ.get("PORT", "7860"))
+    mcp.run(transport="http", host="0.0.0.0", port=port, path="/mcp")
+
+
 if __name__ == "__main__":
     main()
