@@ -1,6 +1,6 @@
 [project]
 name = "dergipark-mcp"
-version = "0.3.5"
+version = "0.4.0"
 description = "DergiPark (Turkish academic journals) için Model Context Protocol (MCP) sunucusu — OAI-PMH tabanlı, robots-uyumlu, CAPTCHA'sız."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,7 @@ packages = ["src/dergipark_mcp"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/dergipark_mcp/data/journals.json" = "dergipark_mcp/data/journals.json"
+"src/dergipark_mcp/data/seed_index.db.gz" = "dergipark_mcp/data/seed_index.db.gz"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

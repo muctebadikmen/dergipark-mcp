@@ -36,8 +36,8 @@ def _select_slugs(args: argparse.Namespace) -> list[str]:
     if args.slugs:
         return [s.strip().strip("/") for s in args.slugs.split(",") if s.strip()]
     entries = directory.embedded_entries()
-    if args.subject:
-        entries = directory.filter_journals(entries, subject=args.subject)
+    if args.query or args.subject:
+        entries = directory.filter_journals(entries, query=args.query, subject=args.subject)
     slugs = [e.slug for e in entries]
     if args.limit_journals:
         slugs = slugs[: args.limit_journals]
@@ -75,17 +75,19 @@ async def _build(slugs: list[str], out: Path, max_records: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="DergiPark seed indeksi üretici")
-    g = ap.add_mutually_exclusive_group()
-    g.add_argument("--slugs", help="Virgülle ayrılmış dergi slug'ları (ör. mulkiye,ihm)")
-    g.add_argument("--subject", help="Konu filtresi (taksonomi İngilizce, ör. 'Law')")
+    ap.add_argument("--slugs", help="Virgülle ayrılmış dergi slug'ları (ör. mulkiye,ihm)")
+    ap.add_argument("--query", help="Dergi ADI/slug filtresi (ör. 'hukuk' → hukuk dergileri)")
+    ap.add_argument("--subject", help="Konu filtresi (taksonomi İngilizce, ör. 'Law')")
     ap.add_argument("--max-records", type=int, default=2000, help="Dergi başına en fazla makale")
     ap.add_argument("--limit-journals", type=int, default=0, help="En fazla dergi (0=sınırsız; test için)")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="Çıktı index.db yolu")
     args = ap.parse_args()
 
+    if not (args.slugs or args.query or args.subject):
+        ap.error("En az bir seçici verin: --slugs, --query veya --subject (tümünü bake etmeyi önler).")
     slugs = _select_slugs(args)
     if not slugs:
-        ap.error("Seçilen dergi yok — --slugs ya da geçerli bir --subject verin.")
+        ap.error("Seçilen dergi yok — filtreyi gözden geçirin.")
     print(
         f"{len(slugs)} dergi harvest edilecek (max_records={args.max_records}) → {args.out}\n",
         flush=True,

@@ -23,6 +23,8 @@ htmlcov/
 *.sqlite
 *.sqlite3
 .dergipark-mcp/
+# Bake'lenmiş seed indeksi pakete GZIP'li gönderilir (data/seed_index.db.gz; *.gz ignore edilmez).
+# Sıkıştırılmamış ham seed_index.db ise bilerek ignore'da kalır (build artefaktı).
 
 # Paketleme çıktıları
 *.mcpb

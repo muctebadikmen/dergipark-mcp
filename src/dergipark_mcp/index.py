@@ -14,6 +14,7 @@ tuhaflıklarına bağımlı kalınmaz (içerik zaten ASCII'ye katlanmış olur).
 
 from __future__ import annotations
 
+import gzip
 import os
 import re
 import shutil
@@ -279,10 +280,14 @@ _default_index: SearchIndex | None = None
 
 def _seed_index_path() -> Path | None:
     """Bake'lenmiş seed indeksinin yolu (varsa). Önce ``DERGIPARK_SEED_INDEX`` env'i
-    (verilmişse YALNIZ o; yoksa None), aksi halde pakete gömülü ``data/seed_index.db``.
-    Dosya yoksa/boşsa None."""
+    (verilmişse YALNIZ o; yoksa None), aksi halde pakete gömülü ``data/seed_index.db``
+    veya gzip'li ``data/seed_index.db.gz``. Dosya yoksa/boşsa None."""
     override = os.environ.get("DERGIPARK_SEED_INDEX")
-    candidates = [Path(override)] if override else [Path(__file__).parent / "data" / "seed_index.db"]
+    if override:
+        candidates = [Path(override)]
+    else:
+        data = Path(__file__).parent / "data"
+        candidates = [data / "seed_index.db", data / "seed_index.db.gz"]
     for p in candidates:
         try:
             if p.exists() and p.stat().st_size > 0:
@@ -296,9 +301,10 @@ def get_default_index() -> SearchIndex:
     """Uygulama genelinde paylaşılan kalıcı indeks (lazy).
 
     İlk kullanımda çalışma indeksi (``cache_dir/index.db``) henüz YOKSA ve bir
-    bake'lenmiş seed indeksi mevcutsa, seed YAZILABİLİR konuma kopyalanır →
-    dergiler-arası arama ilk istekte sıcak olur; on-demand harvest yine ekleyebilir.
-    Mevcut bir çalışma indeksi varsa asla üzerine yazılmaz (yerel veriyi korur).
+    bake'lenmiş seed indeksi mevcutsa, seed YAZILABİLİR konuma açılır (``.gz`` ise
+    çözülerek) → dergiler-arası arama ilk istekte sıcak olur; on-demand harvest yine
+    ekleyebilir. Mevcut bir çalışma indeksi varsa asla üzerine yazılmaz (yerel veriyi
+    korur). Seed bozuksa/açılamıyorsa sessizce boş indeksle devam edilir.
     """
     global _default_index
     if _default_index is None:
@@ -309,8 +315,12 @@ def get_default_index() -> SearchIndex:
             seed = _seed_index_path()
             if seed is not None:
                 try:
-                    shutil.copy2(seed, target)
-                except OSError:
-                    pass  # kopyalanamazsa boş indeksle güvenle devam et (bozma)
+                    if seed.suffix == ".gz":
+                        with gzip.open(seed, "rb") as src, open(target, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                    else:
+                        shutil.copy2(seed, target)
+                except Exception:  # noqa: BLE001 — seed açılamazsa boş indeksle güvenle devam
+                    target.unlink(missing_ok=True)  # yarım kalan dosyayı temizle
         _default_index = SearchIndex()
     return _default_index

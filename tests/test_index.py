@@ -215,6 +215,34 @@ def test_seed_loads_into_empty_cache(tmp_path, monkeypatch):
         index._default_index = None
 
 
+def test_seed_loads_from_gzip(tmp_path, monkeypatch):
+    # Bake'lenmiş seed GZIP'li gelir → açılışta çözülerek yüklenmeli.
+    import gzip
+    import shutil as _sh
+    seed = tmp_path / "seed.db"
+    s = SearchIndex(str(seed))
+    s.index_articles("j", [FakeArticle("1", title="Hukuk tarihi")])
+    s.mark_harvested("j", 1, complete=True)
+    s.close()
+    gz = tmp_path / "seed.db.gz"
+    with open(seed, "rb") as fi, gzip.open(gz, "wb") as fo:
+        _sh.copyfileobj(fi, fo)
+
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("DERGIPARK_CACHE_DIR", str(cache))
+    monkeypatch.setenv("DERGIPARK_SEED_INDEX", str(gz))
+    index._default_index = None
+    try:
+        idx2 = index.get_default_index()
+        total, rows = idx2.search(None, "hukuk")
+        assert total == 1 and rows[0]["journal_slug"] == "j"
+        assert (cache / "index.db").exists()  # gzip çözülüp yazılabilir db'ye yazıldı
+    finally:
+        if index._default_index is not None:
+            index._default_index.close()
+        index._default_index = None
+
+
 def test_no_seed_starts_empty(tmp_path, monkeypatch):
     # Seed yoksa (env var ama dosya yok) → boş indeksle güvenle başlar, çökmez.
     cache = tmp_path / "cache"
