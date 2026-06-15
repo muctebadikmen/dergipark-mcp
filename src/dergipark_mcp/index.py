@@ -158,10 +158,21 @@ class SearchIndex:
         ).fetchone()
         return int(row["n"]) if row else 0
 
+    def indexed_journals(self) -> list[dict]:
+        """İndekste (havuzda) bulunan dergiler: ``slug`` + makale ``count`` +
+        ``complete`` (tam kapsam). Dergiler-arası aramanın kapsamını dürüstçe
+        bildirmek için kullanılır. En çok makaleli dergi başta."""
+        rows = self._conn.execute(
+            "SELECT a.journal_slug AS slug, COUNT(*) AS n, COALESCE(m.complete,0) AS complete "
+            "FROM articles a LEFT JOIN harvest_meta m ON m.journal_slug=a.journal_slug "
+            "GROUP BY a.journal_slug ORDER BY n DESC, a.journal_slug"
+        ).fetchall()
+        return [{"slug": r["slug"], "count": int(r["n"]), "complete": bool(r["complete"])} for r in rows]
+
     # ---------------------------------------------------------------- search
     def search(
         self,
-        journal_slug: str,
+        journal_slug: str | None,
         query: str,
         *,
         year_from: int | None = None,
@@ -173,7 +184,11 @@ class SearchIndex:
         offset: int = 0,
     ) -> tuple[int, list[dict]]:
         """FTS5 BM25 (title 5× / keywords 3× / authors 2× / abstract 1×) + recency
-        boost + tam-ifade başlık bonusu. ``(total_matched, page_rows)`` döndürür."""
+        boost + tam-ifade başlık bonusu. ``(total_matched, page_rows)`` döndürür.
+
+        ``journal_slug`` bir slug ise yalnız o dergide; ``None`` ise indekslenmiş
+        TÜM dergilerde (havuz) arar. Sonuç satırları her durumda ``journal_slug``
+        taşır."""
         terms = _query_terms(query)
         if not terms:
             return (0, [])
@@ -183,9 +198,12 @@ class SearchIndex:
             "SELECT a.art_id,a.journal_slug,a.title,a.title_en,a.authors,a.abstract,a.date,a.url,"
             "a.article_type,a.keywords, bm25(articles_fts,5.0,3.0,2.0,1.0) AS score "
             "FROM articles_fts JOIN articles a ON a.rowid=articles_fts.rowid "
-            "WHERE articles_fts MATCH ? AND a.journal_slug=?"
+            "WHERE articles_fts MATCH ?"
         )
-        params: list = [match, journal_slug]
+        params: list = [match]
+        if journal_slug is not None:
+            sql += " AND a.journal_slug=?"
+            params.append(journal_slug)
         # Yıl filtresi: tarihin YIL bileşeni üzerinden karşılaştır. (Sözlüksel
         # string karşılaştırması "2021" gibi yıl-tek tarihleri yanlış eler;
         # CAST(substr(...)) sağlamdır — "2021" ve "2021-05-01" ikisi de 2021 olur.)

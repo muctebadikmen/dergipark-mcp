@@ -47,7 +47,10 @@ mcp = FastMCP(
         "/pub/<slug>/ kısmıdır (örn. .../pub/mulkiye/ -> slug 'mulkiye'). "
         "Anahtar kelime araması bir dergi kapsamında çalışır (DergiPark genel arama "
         "API'si sunmaz). Önce list_journals ile dergiyi bulabilir, sonra o derginin "
-        "içinde search_articles ile arayabilir, get_article ile künye + hazır atıf "
+        "içinde search_articles ile arayabilirsiniz. Bir KONUYU tek dergiyle "
+        "sınırlamadan, önceden indekslenmiş tüm dergilerde (havuz) tek seferde aramak "
+        "için search_all_journals kullanın — kapsam (hangi/kaç dergi) yanıtta dürüstçe "
+        "bildirilir. get_article ile künye + hazır atıf "
         "formatları (APA/MLA/IEEE/BibTeX…) ve get_article_fulltext ile tam metni "
         "alabilirsiniz. Bir makalenin künyesi/atıfı istendiğinde get_article kullanın "
         "(get_article_references yalnızca kaynakçayı verir)."
@@ -474,6 +477,128 @@ async def search_articles(
         "offset": offset,
         "results": results,
         "note": " ".join(notes) if notes else None,
+        "source_notice": SOURCE_NOTICE,
+    }
+
+
+@mcp.tool(annotations=READONLY)
+async def search_all_journals(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    author: str | None = None,
+    article_type: str | None = None,
+    sort: str = "relevance",
+    include_abstract: bool = True,
+    ctx: Context | None = None,
+) -> dict:
+    """ÖNCEDEN İNDEKSLENMİŞ dergilerin TAMAMINDA (havuz) tek seferde arama.
+
+    Bir konuyu (ör. "hukuk tarihi") TEK BİR dergiyle sınırlamadan, indekslenmiş
+    tüm dergilerde aramak için bunu kullanın. DergiPark siteler-arası bir arama
+    API'si sunmadığından, bu araç yalnızca HALİHAZIRDA indeksli dergilerde arar:
+    (1) sunucuyla gelen bake'lenmiş indeks + (2) bu oturumda search_articles ile
+    taranmış dergiler. 2548 derginin tamamını on-demand TARAMAZ (imkânsız) — bu
+    yüzden kapsam (hangi/kaç dergi) yanıtta dürüstçe bildirilir.
+
+    Havuzda olmayan bir dergiyi de katmak isterseniz: önce
+    ``search_articles(journal=<slug>, query=...)`` ile bir kez aratın; o dergi
+    havuza eklenir ve sonraki ``search_all_journals`` çağrılarına dahil olur.
+
+    Args:
+        query: Aranacak kelimeler (Türkçe-duyarlı; çok kelimeli sorgularda tam
+            ifade ve başlık eşleşmeleri öne çıkar).
+        limit: Bu sayfadaki en fazla sonuç.
+        offset: Sayfalama kaydırması.
+        year_from: Bu yıldan itibaren (dahil).
+        year_to: Bu yıla kadar (dahil).
+        author: Yazar adında geçen metin (Türkçe-duyarsız).
+        article_type: Makale türü filtresi.
+        sort: "relevance" (varsayılan), "newest" veya "oldest".
+        include_abstract: True ise kısaltılmış özet de eklenir.
+    """
+    if not index._query_terms(query):
+        raise ToolError(
+            "Boş veya yalnızca durak-kelime içeren sorgu — ayırt edici en az bir kelime verin."
+        )
+    if sort not in ("relevance", "newest", "oldest"):
+        raise ToolError("sort yalnızca 'relevance', 'newest' veya 'oldest' olabilir.")
+
+    idx = index.get_default_index()
+    pool = idx.indexed_journals()
+    if not pool:
+        return {
+            "query": query,
+            "scope": "all_indexed_journals",
+            "indexed_journal_count": 0,
+            "total": 0,
+            "count": 0,
+            "results": [],
+            "note": (
+                "Havuz boş — henüz hiçbir dergi indekslenmemiş (bake'lenmiş indeks de yüklü değil). "
+                "Önce search_articles(journal=<slug>, query=...) ile en az bir dergi aratın; o dergi "
+                "havuza eklenir ve buradan aranabilir hale gelir."
+            ),
+            "source_notice": SOURCE_NOTICE,
+        }
+
+    total, rows = idx.search(
+        None, query,
+        year_from=year_from, year_to=year_to,
+        article_type=article_type, author=author,
+        sort=sort, limit=limit, offset=offset,
+    )
+
+    results = []
+    for r in rows:
+        item = {
+            "id": r["art_id"],
+            "journal_slug": r["journal_slug"],
+            "title": r["title"] or r["title_en"],
+            "authors": r["authors"].split("; ") if r["authors"] else [],
+            "date": r["date"],
+            "url": r["url"],
+            "resource_uri": f"dergipark://article/{r['art_id']}",
+        }
+        if r["article_type"]:
+            item["article_type"] = r["article_type"]
+        if include_abstract and r["abstract"]:
+            ab = r["abstract"]
+            item["abstract"] = (ab[:300] + "…") if len(ab) > 300 else ab
+        results.append(item)
+
+    total_articles = sum(p["count"] for p in pool)
+    notes: list[str] = []
+    if total == 0:
+        notes.append("Eşleşme yok. Daha az/farklı kelime deneyin ya da havuza dergi ekleyin.")
+    elif total > offset + len(results):
+        notes.append(
+            f"{total} eşleşmeden {offset + 1}–{offset + len(results)} gösteriliyor. offset'i artırın."
+        )
+    # DÜRÜSTLÜK: aramanın kapsamı = yalnız indeksli havuz, tüm DergiPark değil.
+    notes.append(
+        f"KAPSAM: Arama yalnızca indeksli {len(pool)} dergi ({total_articles} makale) üzerinde yapıldı; "
+        f"DergiPark'taki diğer dergiler kapsanmadı. Havuza dergi eklemek için "
+        f"search_articles(journal=<slug>) ile bir kez aratın."
+    )
+
+    return {
+        "query": query,
+        "scope": "all_indexed_journals",
+        "indexed_journal_count": len(pool),
+        "indexed_article_total": total_articles,
+        "journals_in_scope": [p["slug"] for p in pool[:50]],
+        "query_used_parameters": {
+            "limit": limit, "offset": offset, "year_from": year_from, "year_to": year_to,
+            "author": author, "article_type": article_type, "sort": sort,
+        },
+        "total": total,
+        "count": len(results),
+        "offset": offset,
+        "results": results,
+        "note": " ".join(notes),
         "source_notice": SOURCE_NOTICE,
     }
 

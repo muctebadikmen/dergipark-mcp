@@ -164,6 +164,34 @@ def test_search_returns_journal_slug(idx):
     assert rows and all(r["journal_slug"] == "test" for r in rows)
 
 
+def test_cross_journal_search_none_slug():
+    # journal_slug=None → indekslenmiş TÜM dergilerde arar; slug verilince izole kalır.
+    ix = SearchIndex(":memory:")
+    ix.index_articles("j1", [FakeArticle("a", title="Eğitim ve hukuk reformu")])
+    ix.index_articles("j2", [FakeArticle("b", title="Hukuk tarihi araştırması")])
+    total, rows = ix.search(None, "hukuk")
+    assert total == 2
+    assert {r["journal_slug"] for r in rows} == {"j1", "j2"}
+    # tek dergi araması yalnız o dergiyi döndürür
+    _, only_j2 = ix.search("j2", "hukuk")
+    assert {r["journal_slug"] for r in only_j2} == {"j2"}
+    ix.close()
+
+
+def test_indexed_journals_inventory():
+    ix = SearchIndex(":memory:")
+    ix.index_articles("j1", [FakeArticle("a", title="x")])
+    ix.mark_harvested("j1", 1, complete=True)
+    ix.index_articles("j2", [FakeArticle("b", title="y"), FakeArticle("c", title="z")])
+    ix.mark_harvested("j2", 2, complete=False)
+    pool = ix.indexed_journals()
+    by = {p["slug"]: p for p in pool}
+    assert by["j1"]["count"] == 1 and by["j1"]["complete"] is True
+    assert by["j2"]["count"] == 2 and by["j2"]["complete"] is False
+    assert pool[0]["slug"] == "j2"  # en çok makaleli başta
+    ix.close()
+
+
 def test_coverage_complete_flag(idx):
     # mark_harvested complete bayrağını doğru saklamalı
     idx.mark_harvested("test", 4, complete=True)
