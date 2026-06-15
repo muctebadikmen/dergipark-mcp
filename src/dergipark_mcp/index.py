@@ -14,7 +14,9 @@ tuhaflıklarına bağımlı kalınmaz (içerik zaten ASCII'ye katlanmış olur).
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
 import sqlite3
 import time
 from pathlib import Path
@@ -275,9 +277,40 @@ class SearchIndex:
 _default_index: SearchIndex | None = None
 
 
+def _seed_index_path() -> Path | None:
+    """Bake'lenmiş seed indeksinin yolu (varsa). Önce ``DERGIPARK_SEED_INDEX`` env'i
+    (verilmişse YALNIZ o; yoksa None), aksi halde pakete gömülü ``data/seed_index.db``.
+    Dosya yoksa/boşsa None."""
+    override = os.environ.get("DERGIPARK_SEED_INDEX")
+    candidates = [Path(override)] if override else [Path(__file__).parent / "data" / "seed_index.db"]
+    for p in candidates:
+        try:
+            if p.exists() and p.stat().st_size > 0:
+                return p
+        except OSError:
+            continue
+    return None
+
+
 def get_default_index() -> SearchIndex:
-    """Uygulama genelinde paylaşılan kalıcı indeks (lazy)."""
+    """Uygulama genelinde paylaşılan kalıcı indeks (lazy).
+
+    İlk kullanımda çalışma indeksi (``cache_dir/index.db``) henüz YOKSA ve bir
+    bake'lenmiş seed indeksi mevcutsa, seed YAZILABİLİR konuma kopyalanır →
+    dergiler-arası arama ilk istekte sıcak olur; on-demand harvest yine ekleyebilir.
+    Mevcut bir çalışma indeksi varsa asla üzerine yazılmaz (yerel veriyi korur).
+    """
     global _default_index
     if _default_index is None:
+        d = cache_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        target = d / "index.db"
+        if not target.exists():
+            seed = _seed_index_path()
+            if seed is not None:
+                try:
+                    shutil.copy2(seed, target)
+                except OSError:
+                    pass  # kopyalanamazsa boş indeksle güvenle devam et (bozma)
         _default_index = SearchIndex()
     return _default_index
