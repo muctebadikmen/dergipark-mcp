@@ -3,8 +3,10 @@
 # Kaynak kodu public GitHub reposundan kurar → her rebuild en güncel main'i alır.
 FROM python:3.11-slim
 
-# Tek bağımlılık: paketin kendisi (fastmcp, httpx, bs4, pypdf, platformdirs onunla gelir)
-RUN pip install --no-cache-dir "git+https://github.com/muctebadikmen/dergipark-mcp@main"
+# Tek bağımlılık: paketin kendisi (fastmcp, httpx, bs4, pypdf, platformdirs onunla gelir).
+# git+ yerine GitHub tarball'ı kullanıyoruz → slim imajda 'git' kurmaya gerek kalmaz.
+RUN pip install --no-cache-dir \
+    "https://github.com/muctebadikmen/dergipark-mcp/archive/refs/heads/main.tar.gz"
 
 # Hosted/paylaşılan ortam ayarları
 ENV PORT=7860 \
