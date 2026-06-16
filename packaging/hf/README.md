@@ -22,7 +22,7 @@ resmî OAI-PMH servisini kullanır; anahtarsız, CAPTCHA'sız, robots.txt'e uyum
 **MCP endpoint:**
 
 ```
-https://mmd1999-dergipark-mcp.hf.space/mcp
+https://muctebadikmen-dergipark-mcp.hf.space/mcp
 ```
 
 Claude (Desktop veya claude.ai) → **Settings → Connectors → Add custom connector** →
