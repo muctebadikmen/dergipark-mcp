@@ -50,7 +50,8 @@ mcp = FastMCP(
         "içinde search_articles ile arayabilirsiniz. Bir KONUYU tek dergiyle "
         "sınırlamadan, önceden indekslenmiş tüm dergilerde (havuz) tek seferde aramak "
         "için search_all_journals kullanın — kapsam (hangi/kaç dergi) yanıtta dürüstçe "
-        "bildirilir. get_article ile künye + hazır atıf "
+        "bildirilir. Bir YAZARIN makaleleri için find_author; bir makaleye BENZER "
+        "makaleler için related_articles kullanın. get_article ile künye + hazır atıf "
         "formatları (APA/MLA/IEEE/BibTeX…) ve get_article_fulltext ile tam metni "
         "alabilirsiniz. Bir makalenin künyesi/atıfı istendiğinde get_article kullanın "
         "(get_article_references yalnızca kaynakçayı verir)."
@@ -607,6 +608,181 @@ async def search_all_journals(
         "offset": offset,
         "results": results,
         "note": " ".join(notes),
+        "source_notice": SOURCE_NOTICE,
+    }
+
+
+@mcp.tool(annotations=READONLY)
+async def find_author(
+    author: str,
+    limit: int = 20,
+    offset: int = 0,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    sort: str = "newest",
+    include_abstract: bool = False,
+    ctx: Context | None = None,
+) -> dict:
+    """Bir YAZARIN indekslenmiş havuzdaki makaleleri (dergiler-arası, yazar bazlı keşif).
+
+    "Şu yazarın makaleleri/çalışmaları", "X neler yazmış" gibi istekler için.
+    KONU (query) GEREKMEZ — yalnız yazar adı yeterli; ad-sırasından bağımsızdır
+    ("Aybars Pamir" ≈ "Pamir, Aybars") ve Türkçe-duyarlıdır. Yalnız HALİHAZIRDA
+    indeksli dergilerde arar (bake'li havuz + bu oturumda taranmış dergiler);
+    kapsam yanıtta dürüstçe bildirilir.
+
+    Args:
+        author: Yazar adı (kısmî de olur, ör. "Pamir" veya "Aybars Pamir").
+        limit: Bu sayfadaki en fazla sonuç.
+        offset: Sayfalama kaydırması.
+        year_from: Bu yıldan itibaren (dahil).
+        year_to: Bu yıla kadar (dahil).
+        sort: "newest" (varsayılan) veya "oldest".
+        include_abstract: True ise kısaltılmış özet de eklenir.
+    """
+    if not index._query_terms(author):
+        raise ToolError("Geçerli bir yazar adı verin (ör. 'Pamir' veya 'Aybars Pamir').")
+    if sort not in ("newest", "oldest"):
+        raise ToolError("sort yalnızca 'newest' veya 'oldest' olabilir.")
+
+    idx = index.get_default_index()
+    pool = idx.indexed_journals()
+    total, rows = idx.search_by_author(
+        author, year_from=year_from, year_to=year_to, sort=sort, limit=limit, offset=offset,
+    )
+
+    results = []
+    for r in rows:
+        item = {
+            "id": r["art_id"],
+            "journal_slug": r["journal_slug"],
+            "title": r["title"] or r["title_en"],
+            "authors": r["authors"].split("; ") if r["authors"] else [],
+            "date": r["date"],
+            "url": r["url"],
+            "resource_uri": f"dergipark://article/{r['art_id']}",
+        }
+        if r["article_type"]:
+            item["article_type"] = r["article_type"]
+        if include_abstract and r["abstract"]:
+            ab = r["abstract"]
+            item["abstract"] = (ab[:300] + "…") if len(ab) > 300 else ab
+        results.append(item)
+
+    notes: list[str] = []
+    if total == 0:
+        notes.append(
+            f"'{author}' için indeksli havuzda eşleşme yok. Yazar havuzda olmayan bir dergide "
+            "olabilir — o dergiyi search_articles ile bir kez aratıp havuza ekleyin ya da adı "
+            "farklı yazın."
+        )
+    elif total > offset + len(results):
+        notes.append(
+            f"{total} sonuçtan {offset + 1}–{offset + len(results)} gösteriliyor. offset'i artırın."
+        )
+    notes.append(
+        f"KAPSAM: yalnız indeksli {len(pool)} dergi üzerinde arandı; diğer dergiler kapsanmadı."
+    )
+
+    return {
+        "author_query": author,
+        "scope": "all_indexed_journals",
+        "indexed_journal_count": len(pool),
+        "total": total,
+        "count": len(results),
+        "offset": offset,
+        "results": results,
+        "note": " ".join(notes),
+        "source_notice": SOURCE_NOTICE,
+    }
+
+
+@mcp.tool(annotations=READONLY)
+async def related_articles(
+    article: str,
+    limit: int = 10,
+    include_abstract: bool = True,
+    ctx: Context | None = None,
+) -> dict:
+    """Verilen makaleye BENZER/İLGİLİ makaleler — indekslenmiş havuzdan.
+
+    Bir makaleden yola çıkıp aynı konudaki diğer makaleleri bulmak için ("buna benzer
+    makaleler", "ilgili çalışmalar", literatür 'kartopu'). Kaynak makalenin anahtar
+    kelime + başlık terimleriyle örtüşen makaleleri sıralar (ne kadar çok ortak terim,
+    o kadar üstte). Yalnız indeksli havuzda arar.
+
+    Args:
+        article: Makale kimliği (sayısal id, tam URL, "slug/id" veya OAI id).
+        limit: En fazla benzer makale.
+        include_abstract: True ise kısaltılmış özet de eklenir.
+    """
+    numeric, _url = _resolve_id_and_url(article)
+    if not numeric:
+        raise ToolError(
+            f"Makale kimliği çözümlenemedi: {article!r}. Sayısal id, URL veya 'slug/id' verin."
+        )
+
+    idx = index.get_default_index()
+    src = idx.get_indexed_article(numeric)
+    if src is not None:
+        basis = " ".join(filter(None, [src.get("title"), src.get("title_en"), src.get("keywords")]))
+        src_title = src.get("title") or src.get("title_en")
+    else:
+        # Havuzda yoksa tek kaydı OAI'den hafifçe çek (yalnız başlık + konu için).
+        try:
+            meta = await oai.get_record(numeric)
+        except oai.OAIError as exc:
+            raise ToolError(f"Makale bulunamadı ({numeric}): {exc.code}") from exc
+        kw = list(getattr(meta, "keywords", []) or []) + list(getattr(meta, "subjects", []) or [])
+        basis = " ".join(filter(None, [meta.title, meta.title_en, " ".join(kw)]))
+        src_title = meta.title or meta.title_en
+
+    terms = index._query_terms(basis)
+    if not terms:
+        return {
+            "article": numeric,
+            "based_on": src_title,
+            "total": 0,
+            "count": 0,
+            "results": [],
+            "note": "Bu makalede benzerlik kurmaya yetecek anahtar kelime/başlık bulunamadı.",
+            "source_notice": SOURCE_NOTICE,
+        }
+
+    total, rows = idx.find_similar(terms, exclude_art_id=numeric, limit=limit)
+    results = []
+    for r in rows:
+        item = {
+            "id": r["art_id"],
+            "journal_slug": r["journal_slug"],
+            "title": r["title"] or r["title_en"],
+            "authors": r["authors"].split("; ") if r["authors"] else [],
+            "date": r["date"],
+            "url": r["url"],
+            "resource_uri": f"dergipark://article/{r['art_id']}",
+        }
+        if r["article_type"]:
+            item["article_type"] = r["article_type"]
+        if include_abstract and r["abstract"]:
+            ab = r["abstract"]
+            item["abstract"] = (ab[:300] + "…") if len(ab) > 300 else ab
+        results.append(item)
+
+    pool = idx.indexed_journals()
+    note = (
+        f"KAPSAM: benzerlik yalnız indeksli {len(pool)} dergi üzerinde arandı."
+        if results
+        else "İndeksli havuzda benzer makale bulunamadı (havuza daha fazla dergi eklenebilir)."
+    )
+
+    return {
+        "article": numeric,
+        "based_on": src_title,
+        "scope": "all_indexed_journals",
+        "total": total,
+        "count": len(results),
+        "results": results,
+        "note": note,
         "source_notice": SOURCE_NOTICE,
     }
 

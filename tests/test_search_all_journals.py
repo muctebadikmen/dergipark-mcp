@@ -67,3 +67,32 @@ async def test_search_all_journals_empty_pool(memory_index):
     assert data["indexed_journal_count"] == 0
     assert data["total"] == 0
     assert "Havuz boş" in data["note"]
+
+
+async def test_find_author_tool(memory_index):
+    # Yazar bazlı, dergiler-arası, ad-sırasından bağımsız, konu gerektirmez.
+    memory_index.index_articles("j1", [FakeArticle("1", title="A", authors=["Pamir, Aybars"], date="2020")])
+    memory_index.index_articles("j2", [FakeArticle("2", title="B", authors=["Pamir, Aybars"], date="2022")])
+    memory_index.index_articles("j1", [FakeArticle("3", title="C", authors=["Demir, Ali"], date="2021")])
+    async with Client(mcp) as client:
+        res = await client.call_tool("find_author", {"author": "Aybars Pamir", "limit": 10})
+    data = res.data
+    assert data["total"] == 2
+    assert {r["journal_slug"] for r in data["results"]} == {"j1", "j2"}
+    assert data["results"][0]["id"] == "2"  # newest
+
+
+async def test_related_articles_tool(memory_index):
+    # DergiPark makale id'leri sayısaldır; related_articles girdiyi sayısal id'ye çözer.
+    memory_index.index_articles("j1", [
+        FakeArticle("100", title="Osmanlı hukuku", keywords=["Osmanlı", "hukuk"]),
+        FakeArticle("200", title="Osmanlı hukukunda kefalet", keywords=["Osmanlı", "hukuk"]),
+        FakeArticle("300", title="Deniz biyolojisi", keywords=["deniz"]),
+    ])
+    async with Client(mcp) as client:
+        res = await client.call_tool("related_articles", {"article": "100", "limit": 5})
+    data = res.data
+    ids = [r["id"] for r in data["results"]]
+    assert "100" not in ids        # kaynağın kendisi elenir
+    assert "200" in ids            # ortak terimler
+    assert data["based_on"] == "Osmanlı hukuku"

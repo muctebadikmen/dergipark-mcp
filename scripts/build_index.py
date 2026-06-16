@@ -44,7 +44,7 @@ def _select_slugs(args: argparse.Namespace) -> list[str]:
     return slugs
 
 
-async def _build(slugs: list[str], out: Path, max_records: int) -> None:
+async def _build(slugs: list[str], out: Path, max_records: int, max_db_mb: float = 0.0) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     idx = SearchIndex(str(out))
     total_new = 0
@@ -59,11 +59,16 @@ async def _build(slugs: list[str], out: Path, max_records: int) -> None:
         idx.mark_harvested(slug, len(articles), complete=len(articles) < max_records)
         total_new += added
         ok += 1
+        cur_mb = out.stat().st_size / 1e6 if out.exists() else 0.0
         print(
             f"[{i}/{len(slugs)}] {slug}: {len(articles)} makale ({added} yeni) "
-            f"| havuz: {total_new}",
+            f"| havuz: {total_new} | db: {cur_mb:.0f}MB",
             flush=True,
         )
+        # Boyut bütçesi: git'e sığacak ham db sınırına ulaşınca dur (gz ≈ %44).
+        if max_db_mb and cur_mb >= max_db_mb:
+            print(f"\n[BÜTÇE] db {cur_mb:.0f}MB ≥ {max_db_mb:.0f}MB — harvest durduruldu.", flush=True)
+            break
     idx.close()
     await http.aclose()
     size_mb = out.stat().st_size / 1e6 if out.exists() else 0.0
@@ -80,6 +85,8 @@ def main() -> None:
     ap.add_argument("--subject", help="Konu filtresi (taksonomi İngilizce, ör. 'Law')")
     ap.add_argument("--max-records", type=int, default=2000, help="Dergi başına en fazla makale")
     ap.add_argument("--limit-journals", type=int, default=0, help="En fazla dergi (0=sınırsız; test için)")
+    ap.add_argument("--max-db-mb", type=float, default=0.0,
+                    help="Ham db bu boyuta ulaşınca harvest'i durdur (git-güvenli sınır; gz ≈ %44).")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="Çıktı index.db yolu")
     args = ap.parse_args()
 
@@ -92,7 +99,7 @@ def main() -> None:
         f"{len(slugs)} dergi harvest edilecek (max_records={args.max_records}) → {args.out}\n",
         flush=True,
     )
-    asyncio.run(_build(slugs, Path(args.out), args.max_records))
+    asyncio.run(_build(slugs, Path(args.out), args.max_records, args.max_db_mb))
 
 
 if __name__ == "__main__":

@@ -192,6 +192,45 @@ def test_indexed_journals_inventory():
     ix.close()
 
 
+def test_search_by_author_order_independent():
+    # "Aybars Pamir" (ad soyad), kayıt "Pamir, Aybars" (soyad, ad) olsa da eşleşmeli.
+    ix = SearchIndex(":memory:")
+    ix.index_articles("j1", [FakeArticle("1", title="A", authors=["Pamir, Aybars"], date="2020")])
+    ix.index_articles("j2", [FakeArticle("3", title="C", authors=["Pamir, Aybars"], date="2022")])
+    ix.index_articles("j1", [FakeArticle("2", title="B", authors=["Yılmaz, Ayşe"], date="2021")])
+    total, rows = ix.search_by_author("Aybars Pamir")
+    assert {r["art_id"] for r in rows} == {"1", "3"}
+    assert rows[0]["art_id"] == "3"  # newest (2022) önce
+    # dergiler-arası: iki ayrı dergiden geldi
+    assert {r["journal_slug"] for r in rows} == {"j1", "j2"}
+    ix.close()
+
+
+def test_find_similar_or_overlap():
+    ix = SearchIndex(":memory:")
+    ix.index_articles("j", [
+        FakeArticle("src", title="Osmanlı hukuku tarihi", keywords=["Osmanlı", "hukuk tarihi"]),
+        FakeArticle("a", title="Osmanlı hukukunda kefalet", keywords=["Osmanlı", "hukuk"]),
+        FakeArticle("z", title="Deniz biyolojisi", keywords=["deniz", "biyoloji"]),
+    ])
+    terms = index._query_terms("Osmanlı hukuku tarihi hukuk")
+    total, rows = ix.find_similar(terms, exclude_art_id="src", limit=10)
+    ids = [r["art_id"] for r in rows]
+    assert "src" not in ids       # kaynağın kendisi elenir
+    assert "a" in ids             # ortak terimler (Osmanlı/hukuk)
+    assert "z" not in ids         # alakasız
+    ix.close()
+
+
+def test_get_indexed_article():
+    ix = SearchIndex(":memory:")
+    ix.index_articles("j", [FakeArticle("7", title="X", keywords=["kavram1"])])
+    row = ix.get_indexed_article("7")
+    assert row and row["art_id"] == "7" and "kavram1" in (row["keywords"] or "")
+    assert ix.get_indexed_article("999") is None
+    ix.close()
+
+
 def test_seed_loads_into_empty_cache(tmp_path, monkeypatch):
     # Bake'lenmiş seed: boş bir cache'e açılışta kopyalanıp yüklenmeli (havuz sıcak).
     seed = tmp_path / "seed.db"

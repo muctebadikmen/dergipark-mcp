@@ -222,8 +222,14 @@ class SearchIndex:
 
         # Python tarafı filtreler (folding ile)
         if author:
-            af = tr_fold(author)
-            rows = [r for r in rows if af in tr_fold(r["authors"] or "")]
+            # Ad-sırasından bağımsız: tüm yazar terimleri (katlanmış) yazar alanında
+            # geçmeli. "Aybars Pamir" → "Pamir, Aybars" kaydını da yakalar.
+            aterms = _query_terms(author)
+            if aterms:
+                rows = [
+                    r for r in rows
+                    if all(t in tr_fold(r["authors"] or "") for t in aterms)
+                ]
         if article_type:
             atf = tr_fold(article_type)
             rows = [r for r in rows if atf in tr_fold(r["article_type"] or "")]
@@ -270,6 +276,95 @@ class SearchIndex:
             r.pop("score", None)
             r.pop("keywords", None)  # yalnız sıralama içindi; sonuç şeklini kirletmesin
         return (total, page)
+
+    # ------------------------------------------------------------ yazar / benzer
+    def search_by_author(
+        self,
+        author: str,
+        *,
+        journal_slug: str | None = None,
+        year_from: int | None = None,
+        year_to: int | None = None,
+        sort: str = "newest",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[int, list[dict]]:
+        """Bir YAZARIN makaleleri (konu/query gerektirmez). ``journal_slug=None``
+        ise indekslenmiş tüm dergilerde arar. Ad-sırasından bağımsız; Türkçe-duyarlı.
+        ``(total, page)`` döndürür; varsayılan sıralama en yeni."""
+        aterms = _query_terms(author)
+        if not aterms:
+            return (0, [])
+        match = " ".join(f"{t}*" for t in aterms)  # AND-of-prefix; aday daralt
+        sql = (
+            "SELECT a.art_id,a.journal_slug,a.title,a.title_en,a.authors,a.abstract,a.date,a.url,"
+            "a.article_type FROM articles_fts JOIN articles a ON a.rowid=articles_fts.rowid "
+            "WHERE articles_fts MATCH ?"
+        )
+        params: list = [match]
+        if journal_slug is not None:
+            sql += " AND a.journal_slug=?"
+            params.append(journal_slug)
+        if year_from:
+            sql += " AND a.date IS NOT NULL AND CAST(substr(a.date,1,4) AS INTEGER) >= ?"
+            params.append(int(year_from))
+        if year_to:
+            sql += " AND a.date IS NOT NULL AND CAST(substr(a.date,1,4) AS INTEGER) <= ?"
+            params.append(int(year_to))
+        sql += " LIMIT 5000"
+        rows = [dict(r) for r in self._conn.execute(sql, params).fetchall()]
+        # Terimler GERÇEKTEN yazar alanında geçmeli (başlık/özet gürültüsünü ele).
+        rows = [r for r in rows if all(t in tr_fold(r["authors"] or "") for t in aterms)]
+        if sort == "oldest":
+            rows.sort(key=lambda r: (r["date"] or "9999"))
+        else:  # newest
+            rows.sort(key=lambda r: (r["date"] or ""), reverse=True)
+        return (len(rows), rows[offset:offset + limit])
+
+    def find_similar(
+        self,
+        terms: list[str],
+        *,
+        exclude_art_id: str | None = None,
+        journal_slug: str | None = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[int, list[dict]]:
+        """Verilen (katlanmış) terimlerle ÖRTÜŞEN makaleler — OR eşleşmesi + bm25.
+        Daha çok ortak terim = daha üstte. ``(total, page)`` döndürür."""
+        terms = [t for t in dict.fromkeys(terms) if t][:12]  # dedup + sınırla
+        if not terms:
+            return (0, [])
+        match = " OR ".join(f"{t}*" for t in terms)
+        sql = (
+            "SELECT a.art_id,a.journal_slug,a.title,a.title_en,a.authors,a.abstract,a.date,a.url,"
+            "a.article_type, bm25(articles_fts,5.0,3.0,2.0,1.0) AS score "
+            "FROM articles_fts JOIN articles a ON a.rowid=articles_fts.rowid "
+            "WHERE articles_fts MATCH ?"
+        )
+        params: list = [match]
+        if journal_slug is not None:
+            sql += " AND a.journal_slug=?"
+            params.append(journal_slug)
+        sql += " ORDER BY score LIMIT 3000"
+        rows = [dict(r) for r in self._conn.execute(sql, params).fetchall()]
+        if exclude_art_id is not None:
+            rows = [r for r in rows if r["art_id"] != str(exclude_art_id)]
+        total = len(rows)
+        page = rows[offset:offset + limit]
+        for r in page:
+            r.pop("score", None)
+        return (total, page)
+
+    def get_indexed_article(self, art_id: str) -> dict | None:
+        """İndekste bir makaleyi art_id ile getir (yoksa None). related_articles
+        için kaynak makalenin anahtar kelime/başlığını okumakta kullanılır."""
+        row = self._conn.execute(
+            "SELECT art_id,journal_slug,title,title_en,authors,abstract,date,url,keywords,article_type "
+            "FROM articles WHERE art_id=? LIMIT 1",
+            (str(art_id),),
+        ).fetchone()
+        return dict(row) if row else None
 
     def close(self) -> None:
         self._conn.close()

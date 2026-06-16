@@ -32,6 +32,8 @@ async def test_tools_are_registered():
         "list_journal_articles",
         "search_articles",
         "search_all_journals",
+        "find_author",
+        "related_articles",
         "get_article",
         "get_article_fulltext",
         "get_article_references",

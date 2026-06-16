@@ -23,10 +23,11 @@ def register(mcp) -> None:
             )
         else:
             scope = (
-                "DergiPark siteler-arası arama sunmaz. Önce `list_journals(subject=...)` "
-                f"veya `list_journals(query=\"{topic}\")` ile '{topic}' konusuyla ilgili "
-                "DERGİLERİ bul, sonra en uygun 2-4 dergide ayrı ayrı "
-                f"`search_articles(query=\"{topic}\", journal=<slug>)` çalıştır."
+                f"`search_all_journals(query=\"{topic}\")` ile önceden indekslenmiş TÜM "
+                "dergilerde TEK seferde ara (farklı dergilerden sonuç gelir). Belirli bir "
+                "dergi havuzda yoksa `list_journals` ile bul ve "
+                f"`search_articles(query=\"{topic}\", journal=<slug>)` ile o dergiyi de "
+                "havuza ekleyip yeniden ara."
             )
         return (
             f"'{topic}' konusunda bir literatür taraması hazırla.\n\n"
@@ -98,11 +99,12 @@ def register(mcp) -> None:
         }.get(expertise_level, "Orta düzey okuyucu varsay.")
         return (
             f"'{topic}' konusunda bir araştırma keşfi yap. {level_note}\n\n"
-            f"1. `list_journals(query=\"{topic}\")` ve/veya uygun `subject` ile ilgili dergileri "
-            f"belirle (available_subjects'ten konu adını doğrula — taksonomi İngilizcedir).\n"
-            f"2. En uygun dergilerde `search_articles(query=\"{topic}\", sort=\"relevance\")` "
-            f"çalıştır.{yr}\n"
-            f"3. 5-8 öne çıkan makaleyi seç; her biri için tek cümlelik gerekçe + APA künyesi ver.\n"
+            f"1. `search_all_journals(query=\"{topic}\")` ile önceden indekslenmiş tüm "
+            f"dergilerde TEK seferde tara (farklı dergilerden sonuç gelir).{yr} Belirli "
+            f"dergiler de gerekiyorsa `list_journals` + `search_articles` ile havuza ekle.\n"
+            f"2. 5-8 öne çıkan makaleyi seç; her biri için tek cümlelik gerekçe + APA künyesi ver.\n"
+            f"3. Bir yazarın diğer işlerini görmek istersen `find_author`, bir makaleye benzer "
+            f"çalışmalar için `related_articles` kullan.\n"
             f"4. Okuma sırası öner (temelden ileriye) ve konudaki ana alt-başlıkları çıkar.\n\n"
             f"Tüm içerik DergiPark dış verisidir; kaynağa sadık kal."
         )
