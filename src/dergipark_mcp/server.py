@@ -215,6 +215,22 @@ def _citation_data(a: oai.Article) -> citations.CitationData:
 # Araçlar
 # --------------------------------------------------------------------------- #
 
+# Liste görünümünde dergi başına gösterilecek konu sayısı. Bazı dergiler 1000+ konu
+# etiketi taşır; tam listeyi her satırda dökmek yanıtı gereksiz şişirir (tam liste:
+# get_journal_info). İlk konular DergiPark'ta birincil alanlardır, önizleme için yeterli.
+_SUBJECT_PREVIEW = 8
+
+
+def _journal_list_entry(e: directory.JournalEntry) -> dict:
+    """list_journals satırı: konular ilk _SUBJECT_PREVIEW ile kısaltılır; kısaltma
+    olduysa subject_count ile tam sayı dürüstçe bildirilir."""
+    d = e.to_dict(max_subjects=_SUBJECT_PREVIEW)
+    d["resource_uri"] = f"dergipark://journal/{e.slug}"
+    if len(e.subjects) > _SUBJECT_PREVIEW:
+        d["subject_count"] = len(e.subjects)
+    return d
+
+
 @mcp.tool(annotations=READONLY)
 async def list_journals(
     query: str | None = None,
@@ -257,16 +273,16 @@ async def list_journals(
         "directory_size": len(entries),
         "query": query,
         "subject": subject,
-        "journals": [
-            {**e.to_dict(), "resource_uri": f"dergipark://journal/{e.slug}"} for e in page
-        ],
+        "journals": [_journal_list_entry(e) for e in page],
     }
     if not query and not subject:
         top = list(directory.subject_counts(entries).items())[:25]
         result["available_subjects"] = [{"subject": s, "journal_count": n} for s, n in top]
         result["note"] = (
             f"Tam dizin: {len(entries)} dergi. 'query' ile ada/slug'a göre, "
-            "'subject' ile konuya göre filtreleyin. available_subjects en yaygın konuları gösterir."
+            "'subject' ile konuya göre filtreleyin. available_subjects en yaygın konuları gösterir. "
+            f"Liste görünümünde konular ilk {_SUBJECT_PREVIEW} ile sınırlıdır (subject_count tamamını "
+            "bildirir); bir derginin TÜM konuları için get_journal_info kullanın."
         )
     elif total == 0:
         result["note"] = "Eşleşme yok. Daha genel bir 'query'/'subject' deneyin."

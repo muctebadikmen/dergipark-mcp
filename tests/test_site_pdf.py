@@ -63,6 +63,19 @@ def test_citation_bibliographic_fields():
     assert any("Critical Thinking" in k for k in b["keywords"])
 
 
+def test_keywords_strip_label_prefix():
+    # DergiPark bazen citation_keywords'ün başına "Anahtar Kelimeler:" etiketini
+    # ya da başıboş bir ":" bırakır; künyede temiz görünmeli.
+    html = (
+        '<html><head>'
+        '<meta name="citation_keywords" content="Anahtar Kelimeler: Kağan, Egemenlik, Kut" />'
+        '</head><body></body></html>'
+    )
+    page = site.parse_article_html(html, "http://x/article/1")
+    b = site.citation_bibliographic(page.citation_meta)
+    assert b["keywords"] == ["Kağan", "Egemenlik", "Kut"]
+
+
 def test_rich_references_full_list():
     page = site.parse_article_html(read_fixture("article_rich.html"), "http://x")
     assert len(page.references) == 38  # canlı doğrulandı
