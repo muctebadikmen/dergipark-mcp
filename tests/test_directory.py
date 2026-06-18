@@ -48,6 +48,16 @@ def test_entries_roundtrip():
     assert back[0].subjects == entries[0].subjects
 
 
+def test_to_dict_max_subjects_caps_preview():
+    e = directory.JournalEntry("j", "Dergi", "Yayıncı", ["A", "B", "C", "D", "E"])
+    # Varsayılan: tüm konular (journals.json / cache roundtrip'i bozulmamalı)
+    assert e.to_dict()["subjects"] == ["A", "B", "C", "D", "E"]
+    # Kapama: yalnız ilk N
+    assert e.to_dict(max_subjects=2)["subjects"] == ["A", "B"]
+    # Konusuz dergide alan hiç eklenmez
+    assert "subjects" not in directory.JournalEntry("k", "K").to_dict(max_subjects=2)
+
+
 def test_load_embedded_shape():
     data = directory.load_embedded()
     assert isinstance(data.get("journals"), list)

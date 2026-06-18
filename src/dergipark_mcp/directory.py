@@ -62,12 +62,17 @@ class JournalEntry:
     publisher: str | None = None
     subjects: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self, max_subjects: int | None = None) -> dict:
+        """``max_subjects`` verilirse konu listesi ilk N ile kısaltılır (liste
+        görünümünde token tasarrufu). Varsayılan ``None`` tam listeyi korur —
+        journals.json/cache serileştirmesi bundan etkilenmez."""
         d: dict = {"slug": self.slug, "name": self.name}
         if self.publisher:
             d["publisher"] = self.publisher
         if self.subjects:
-            d["subjects"] = self.subjects
+            d["subjects"] = (
+                self.subjects if max_subjects is None else self.subjects[:max_subjects]
+            )
         return d
 
 

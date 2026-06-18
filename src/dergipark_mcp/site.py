@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 
 from . import BASE_URL, http
 from .cache import default_cache
+from .oai import normalize_keyword
 
 _PAGE_TTL = 24 * 3600
 
@@ -131,8 +132,9 @@ def citation_bibliographic(meta: dict) -> dict:
     if raw_doi:
         doi = raw_doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
     kw_raw = _first(meta.get("citation_keywords")) or ""
-    # Anahtar kelimeler ";" (bazen ",") ile ayrılır.
-    keywords = [k.strip() for k in re.split(r"[;,]", kw_raw) if k.strip()]
+    # Anahtar kelimeler ";" (bazen ",") ile ayrılır. Bazı kayıtlar baştaki segmente
+    # "Anahtar Kelimeler:" etiketini/başıboş ":" sızdırır; normalize_keyword temizler.
+    keywords = [k for k in (normalize_keyword(p) for p in re.split(r"[;,]", kw_raw)) if k]
     return {
         "title": _first(meta.get("citation_title")),
         "journal": _first(meta.get("citation_journal_title")),

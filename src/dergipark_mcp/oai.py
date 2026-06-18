@@ -115,6 +115,24 @@ def _clean(text: str | None) -> str | None:
     return text or None
 
 
+# Bazı DergiPark kayıtları anahtar kelime/konu değerinin başına etiketi ("Anahtar
+# Kelimeler:") ya da başıboş bir ":" bırakır (gözlemlenen: dc:subject = ": Kagan").
+# Görünür künyeyi (subjects/keywords) temiz tutmak için bunları ayıklarız.
+_KW_LABEL_RE = re.compile(
+    r"^\s*(anahtar\s*(?:kelimeler|kelime|sözcükler|sözcük)|key\s*words?|keywords?)\b\s*:?\s*",
+    re.IGNORECASE,
+)
+
+
+def normalize_keyword(term: str | None) -> str | None:
+    """Anahtar kelime/konu değerini temizler: baştaki etiket ('Anahtar Kelimeler:')
+    ve kenardaki başıboş noktalama (':', ';', ',') atılır. Boşsa None döner."""
+    if not term:
+        return None
+    t = _KW_LABEL_RE.sub("", term).strip().strip(":;,").strip()
+    return t or None
+
+
 def _check_error(root: ET.Element) -> None:
     err = root.find("oai:error", NS)
     if err is not None:
@@ -172,7 +190,9 @@ def parse_record(record: ET.Element) -> Article:
             elif tag == "identifier":
                 identifiers.append(val)
             elif tag == "subject":
-                subjects.append(val)
+                sv = normalize_keyword(val)
+                if sv:
+                    subjects.append(sv)
             elif tag == "description" and description is None:
                 description = val
             elif tag == "publisher" and publisher is None:
@@ -361,7 +381,7 @@ def parse_mods_record(record: ET.Element) -> Article:
                     last_page = _clean(extent.findtext("mods:end", default="", namespaces=NS))
 
         for subj in mods.findall("mods:subject/mods:topic", NS):
-            v = _clean(subj.text)
+            v = normalize_keyword(_clean(subj.text))
             if v:
                 subjects.append(v)
 

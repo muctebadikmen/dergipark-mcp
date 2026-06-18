@@ -7,6 +7,32 @@ from conftest import read_fixture
 from dergipark_mcp import oai
 
 
+def test_normalize_keyword_strips_label_and_stray_punct():
+    # Bazı DergiPark kayıtları dc:subject'e etiket ya da başıboş ":" sızdırır.
+    assert oai.normalize_keyword(": Kagan") == "Kagan"
+    assert oai.normalize_keyword("Anahtar Kelimeler: Kağan") == "Kağan"
+    assert oai.normalize_keyword("Keywords: Roman Law") == "Roman Law"
+    # Temiz değerler aynen korunur (Türkçe karakterler dahil)
+    assert oai.normalize_keyword("Roma Hukuku") == "Roma Hukuku"
+    assert oai.normalize_keyword("  ") is None
+    assert oai.normalize_keyword(None) is None
+
+
+def test_dc_subject_cleaned_in_parse():
+    xml = (
+        '<record xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" '
+        'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        '<header><identifier>oai:dergipark.org.tr:record/1</identifier></header>'
+        '<metadata><oai_dc:dc>'
+        '<dc:title>Başlık</dc:title>'
+        '<dc:subject>: Kagan</dc:subject>'
+        '<dc:subject>Egemenlik</dc:subject>'
+        '</oai_dc:dc></metadata></record>'
+    )
+    art = oai.parse_record(ET.fromstring(xml))
+    assert art.subjects == ["Kagan", "Egemenlik"]
+
+
 def _parse_fixture_record():
     root = ET.fromstring(read_fixture("getrecord.xml").encode("utf-8"))
     record = root.find(".//oai:GetRecord/oai:record", oai.NS)
